@@ -63,89 +63,113 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
             ax.axvline(post_period_end, color="grey", linestyle="--")
         return ax
 
-    # Each chart has size plot_params["chart_width"] x plot_params["chart_height"]
-    # in px hence we need atleast 3 times the height to fit all the charts
-    # Setup base plot
-    fig, axes = mplt.subplots(
-        3,
-        1,
-        figsize=(
-            plot_params["chart_width"] / 100,
-            3 * plot_params["chart_height"] / 100,
-        ),
-        sharex=True,
-    )
-    fig.tight_layout(pad=3.0)
-    axes[0].grid()
-    axes[1].grid()
-    axes[2].grid()
-    axes[0] = _helper_vertical_lines(plot_df, axes[0])
-    axes[2] = _helper_vertical_lines(plot_df, axes[2])
-    axes[1] = _helper_vertical_lines(plot_df, axes[1])
+        # Calculate figure size in inches (assuming plot_params are in pixels)
+        fig_width = plot_params["chart_width"] / 100
+        fig_height = 3 * plot_params["chart_height"] / 100  # For 3 subplots
 
-    axes[2].set_xlabel(
-        "Time", fontsize=plot_params.get("axis_title_font_size", 6), fontweight="bold"
-    )
+        # Setup base plot with constrained_layout for better spacing
+        fig, axes = mplt.subplots(
+            3,
+            1,
+            figsize=(fig_width, fig_height),
+            sharex=True,
+            constrained_layout=True,  # Use constrained_layout instead of tight_layout
+        )
 
-    # Plot the original data with the pre-period and post-period marked
-    # And prediction and confidence intervals
-    original_series = plot_df.loc[
-        (plot_df["scale"] == "original") & (plot_df["stat"] == "observed")
-        ]
-    predicted_series = plot_df.loc[
-        (plot_df["scale"] == "original") & (plot_df["stat"] == "mean")
-        ]
-    axes[0].plot(
-        predicted_series["time"], predicted_series["value"], label="Mean"
-    )
-    axes[0].plot(
-        original_series["time"], original_series["value"], label="Observed"
-    )
-    axes[0].fill_between(
-        original_series["time"],
-        original_series["lower"],
-        original_series["upper"],
-        alpha=0.2,
-    )
-    axes[0].legend(loc="upper right", bbox_to_anchor=(1, 1), fontsize="small")
+        # Enable grid for all subplots
+        for ax in axes:
+            ax.grid()
 
-    # Plot the pointwise effect with the pre-period and post-period marked
-    # And prediction and confidence intervals
-    pointwise_series = plot_df.loc[
-        (plot_df["scale"] == "point_effects") & (plot_df["stat"] == "mean")
-        ]
-    axes[1].plot(
-        pointwise_series["time"], pointwise_series["value"], label="Pointwise"
-    )
-    axes[1].fill_between(
-        pointwise_series["time"],
-        pointwise_series["lower"],
-        pointwise_series["upper"],
-        alpha=0.2,
-    )
-    # Add horizontal dotted line at y=0
-    axes[1].axhline(0, color="grey", linestyle="-")
-    axes[1].legend(loc="upper right", bbox_to_anchor=(1, 1), fontsize="small")
+        # Apply any helper functions if necessary
+        axes[0] = _helper_vertical_lines(plot_df, axes[0])
+        axes[1] = _helper_vertical_lines(plot_df, axes[1])
+        axes[2] = _helper_vertical_lines(plot_df, axes[2])
 
-    # Plot the cumulative effect with the pre-period and post-period marked
-    # And prediction and confidence intervals
-    cumulative_series = plot_df.loc[
-        (plot_df["scale"] == "cumulative_effects") & (plot_df["stat"] == "mean")
-        ]
-    axes[2].plot(
-        cumulative_series["time"], cumulative_series["value"], label="Cumulative"
-    )
-    axes[2].fill_between(
-        cumulative_series["time"],
-        cumulative_series["lower"],
-        cumulative_series["upper"],
-        alpha=0.2,
-    )
-    # Add horizontal dotted line at y=0
-    axes[2].axhline(0, color="grey", linestyle="-")
-    axes[2].legend(loc="upper right", bbox_to_anchor=(1, 1), fontsize="small")
+        # Set common x-label for the bottom subplot
+        axes[2].set_xlabel(
+            "Time",
+            fontsize=plot_params.get("axis_title_font_size", 6),
+            fontweight="bold"
+        )
 
-    return fig
+        # Plot the original data with pre-period and post-period marked
+        original_series = plot_df.loc[
+            (plot_df["scale"] == "original") & (plot_df["stat"] == "observed")
+            ]
+        predicted_series = plot_df.loc[
+            (plot_df["scale"] == "original") & (plot_df["stat"] == "mean")
+            ]
+        axes[0].plot(
+            predicted_series["time"], predicted_series["value"], label="Mean"
+        )
+        axes[0].plot(
+            original_series["time"], original_series["value"], label="Observed"
+        )
+        axes[0].fill_between(
+            original_series["time"],
+            original_series["lower"],
+            original_series["upper"],
+            alpha=0.2,
+        )
+        # Place legend outside the plot area to the right
+        axes[0].legend(
+            loc="upper left",
+            bbox_to_anchor=(1, 1),
+            fontsize="small",
+            frameon=False
+        )
+
+        # Plot the pointwise effect with pre-period and post-period marked
+        pointwise_series = plot_df.loc[
+            (plot_df["scale"] == "point_effects") & (plot_df["stat"] == "mean")
+            ]
+        axes[1].plot(
+            pointwise_series["time"], pointwise_series["value"], label="Pointwise"
+        )
+        axes[1].fill_between(
+            pointwise_series["time"],
+            pointwise_series["lower"],
+            pointwise_series["upper"],
+            alpha=0.2,
+        )
+        # Add horizontal line at y=0
+        axes[1].axhline(0, color="grey", linestyle="--")
+        # Place legend outside the plot area to the right
+        axes[1].legend(
+            loc="upper left",
+            bbox_to_anchor=(1, 1),
+            fontsize="small",
+            frameon=False
+        )
+
+        # Plot the cumulative effect with pre-period and post-period marked
+        cumulative_series = plot_df.loc[
+            (plot_df["scale"] == "cumulative_effects") & (plot_df["stat"] == "mean")
+            ]
+        axes[2].plot(
+            cumulative_series["time"], cumulative_series["value"], label="Cumulative"
+        )
+        axes[2].fill_between(
+            cumulative_series["time"],
+            cumulative_series["lower"],
+            cumulative_series["upper"],
+            alpha=0.2,
+        )
+        # Add horizontal line at y=0
+        axes[2].axhline(0, color="grey", linestyle="--")
+        # Place legend outside the plot area to the right
+        axes[2].legend(
+            loc="upper left",
+            bbox_to_anchor=(1, 1),
+            fontsize="small",
+            frameon=False
+        )
+
+        # Adjust layout to make space for legends
+        # If using constrained_layout, this might not be necessary, but added for safety
+        fig.subplots_adjust(right=0.85)
+
+        return fig
 
 
 def plot(ci_model, **kwargs) -> Union[alt.Chart, Any]:
