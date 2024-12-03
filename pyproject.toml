@@ -1,5 +1,5 @@
 [project]
-name = "tfp-causalimpact-customized"
+name = "tfp_causalimpact_customized"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
