@@ -21,14 +21,16 @@ import altair as alt
 import numpy as np
 import pandas as pd
 import tensorflow_probability as tfp
+import matplotlib as mpl
 
 
 def _draw_matplotlib_plot(plot_df, **plot_params):
-    import japanize_matplotlib
-
     """Make actual matplotlib plot."""
     try:
+        import matplotlib as mpl
         import matplotlib.pyplot as mplt  # pylint: disable=g-import-not-at-top
+        import japanize_matplotlib
+        mpl.rcParams['font.family'] = 'Noto Sans JP'
     except ImportError as e:
         raise ImportError(
             "matplotlib is required for using it as plotting backend. Please"
@@ -82,7 +84,7 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
     axes[1] = _helper_vertical_lines(plot_df, axes[1])
 
     axes[2].set_xlabel(
-        "Time", fontsize=plot_params["axis_title_font_size"], fontweight="bold"
+        "Time", fontsize=plot_params.get("axis_title_font_size", 10), fontweight="bold"
     )
 
     # Plot the original data with the pre-period and post-period marked
@@ -105,7 +107,7 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
         original_series["upper"],
         alpha=0.2,
     )
-    axes[0].legend(loc="upper right")
+    axes[0].legend(loc="upper right", bbox_to_anchor=(1, 1), fontsize=plot_params.get("legend_font_size", 9))
 
     # Plot the pointwise effect with the pre-period and post-period marked
     # And prediction and confidence intervals
@@ -123,7 +125,7 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
     )
     # Add horizontal dotted line at y=0
     axes[1].axhline(0, color="grey", linestyle="-")
-    axes[1].legend(loc="upper left")
+    axes[1].legend(loc="upper right", bbox_to_anchor=(1, 1), fontsize=plot_params.get("legend_font_size", 9))
 
     # Plot the cumulative effect with the pre-period and post-period marked
     # And prediction and confidence intervals
@@ -141,7 +143,7 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
     )
     # Add horizontal dotted line at y=0
     axes[2].axhline(0, color="grey", linestyle="-")
-    axes[2].legend(loc="upper left")
+    axes[2].legend(loc="upper right", bbox_to_anchor=(1, 1), fontsize=plot_params.get("legend_font_size", 9))
 
     return fig
 
