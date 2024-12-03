@@ -548,16 +548,18 @@ def _train_causalimpact_sts(
     # To combine posterior sampling with predictions, instead of just using
     # the pre-period, also use the post-period, but with all values being NaN.
     after_pre_period_length = ci_data.model_after_pre_data.shape[0]
+    intervention_mask = tf.cast(ci_data.after_pre_data['intervention'] == 1, dtype=tf.bool)
+
     extended_outcome_ts = tfp.sts.MaskedTimeSeries(
         time_series=tf.concat([
             ci_data.outcome_ts.time_series,
-            tf.fill(after_pre_period_length, tf.constant(
-                float("nan"), dtype=dtype))
+            tf.where(intervention_mask, tf.constant(float("nan"), dtype=dtype), ci_data.after_pre_data['y'])
+
         ],
             axis=0),
         is_missing=tf.concat([
             ci_data.outcome_ts.is_missing,
-            tf.fill(after_pre_period_length, True)
+            intervention_mask
         ],
             axis=0))
     outcome_sd = tf.convert_to_tensor(
