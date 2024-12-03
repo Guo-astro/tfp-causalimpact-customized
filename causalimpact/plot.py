@@ -24,6 +24,267 @@ import tensorflow_probability as tfp
 import matplotlib as mpl
 
 
+def _draw_plotly_plot(plot_df, **plot_params):
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    """Make interactive Plotly plot."""
+    # Extract plot parameters with defaults
+    chart_width = plot_params.get("chart_width", 800)
+    chart_height = plot_params.get("chart_height", 600)
+    axis_title_font_size = plot_params.get("axis_title_font_size", 14)
+    tick_font_size = plot_params.get("tick_font_size", 12)
+    legend_font_size = plot_params.get("legend_font_size", 12)
+    title_font_size = plot_params.get("title_font_size", 16)
+
+    # Create subplots: 3 rows, 1 column
+    fig = make_subplots(
+        rows=3, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.05,
+        subplot_titles=(
+            "Original vs Predicted",
+            "Pointwise Effects",
+            "Cumulative Effects"
+        )
+    )
+
+    # Helper function to add vertical lines
+    def add_vertical_lines(fig, pre_start, pre_end, post_start, post_end, row):
+        shapes = []
+        # Add lines conditionally
+        if plot_df["time"].min() < pre_start:
+            shapes.append(dict(
+                type="line",
+                x0=pre_start, y0=0, x1=pre_start, y1=1,
+                xref='x', yref=f'y{row}',
+                line=dict(color="grey", dash="dash")
+            ))
+        if plot_df["time"].min() < pre_end and plot_df["time"].max() > pre_end and pre_end < post_start:
+            shapes.append(dict(
+                type="line",
+                x0=pre_end, y0=0, x1=pre_end, y1=1,
+                xref='x', yref=f'y{row}',
+                line=dict(color="grey", dash="dash")
+            ))
+        shapes.append(dict(
+            type="line",
+            x0=post_start, y0=0, x1=post_start, y1=1,
+            xref='x', yref=f'y{row}',
+            line=dict(color="grey", dash="dash")
+        ))
+        if plot_df["time"].max() > post_end:
+            shapes.append(dict(
+                type="line",
+                x0=post_end, y0=0, x1=post_end, y1=1,
+                xref='x', yref=f'y{row}',
+                line=dict(color="grey", dash="dash")
+            ))
+        for shape in shapes:
+            fig.add_shape(shape)
+
+    # Extract period boundaries
+    pre_period_start = plot_df["pre_period_start"].iloc[0]
+    pre_period_end = plot_df["pre_period_end"].iloc[0]
+    post_period_start = plot_df["post_period_start"].iloc[0]
+    post_period_end = plot_df["post_period_end"].iloc[0]
+
+    # Add vertical lines to each subplot
+    add_vertical_lines(fig, pre_period_start, pre_period_end, post_period_start, post_period_end, row=1)
+    add_vertical_lines(fig, pre_period_start, pre_period_end, post_period_start, post_period_end, row=2)
+    add_vertical_lines(fig, pre_period_start, pre_period_end, post_period_start, post_period_end, row=3)
+
+    # Plot Original and Predicted in the first subplot
+    original_series = plot_df[(plot_df["scale"] == "original") & (plot_df["stat"] == "observed")]
+    predicted_series = plot_df[(plot_df["scale"] == "original") & (plot_df["stat"] == "mean")]
+
+    fig.add_trace(
+        go.Scatter(
+            x=predicted_series["time"],
+            y=predicted_series["value"],
+            mode='lines',
+            name='Mean',
+            line=dict(color='blue')
+        ),
+        row=1, col=1
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=original_series["time"],
+            y=original_series["value"],
+            mode='lines',
+            name='Observed',
+            line=dict(color='orange')
+        ),
+        row=1, col=1
+    )
+
+    # Add confidence interval as a shaded area
+    fig.add_trace(
+        go.Scatter(
+            x=predicted_series["time"],
+            y=predicted_series["upper"],
+            mode='lines',
+            line=dict(width=0),
+            showlegend=False
+        ),
+        row=1, col=1
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=predicted_series["time"],
+            y=predicted_series["lower"],
+            mode='lines',
+            fill='tonexty',
+            fillcolor='rgba(0, 0, 255, 0.2)',
+            line=dict(width=0),
+            showlegend=False
+        ),
+        row=1, col=1
+    )
+
+    # Plot Pointwise Effects in the second subplot
+    pointwise_series = plot_df[(plot_df["scale"] == "point_effects") & (plot_df["stat"] == "mean")]
+
+    fig.add_trace(
+        go.Scatter(
+            x=pointwise_series["time"],
+            y=pointwise_series["value"],
+            mode='lines',
+            name='Pointwise',
+            line=dict(color='green')
+        ),
+        row=2, col=1
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=pointwise_series["time"],
+            y=pointwise_series["upper"],
+            mode='lines',
+            line=dict(width=0),
+            showlegend=False
+        ),
+        row=2, col=1
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=pointwise_series["time"],
+            y=pointwise_series["lower"],
+            mode='lines',
+            fill='tonexty',
+            fillcolor='rgba(0, 128, 0, 0.2)',
+            line=dict(width=0),
+            showlegend=False
+        ),
+        row=2, col=1
+    )
+
+    # Add horizontal line at y=0
+    fig.add_trace(
+        go.Scatter(
+            x=[plot_df["time"].min(), plot_df["time"].max()],
+            y=[0, 0],
+            mode='lines',
+            line=dict(color='grey', dash='dash'),
+            showlegend=False
+        ),
+        row=2, col=1
+    )
+
+    # Plot Cumulative Effects in the third subplot
+    cumulative_series = plot_df[(plot_df["scale"] == "cumulative_effects") & (plot_df["stat"] == "mean")]
+
+    fig.add_trace(
+        go.Scatter(
+            x=cumulative_series["time"],
+            y=cumulative_series["value"],
+            mode='lines',
+            name='Cumulative',
+            line=dict(color='red')
+        ),
+        row=3, col=1
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=cumulative_series["time"],
+            y=cumulative_series["upper"],
+            mode='lines',
+            line=dict(width=0),
+            showlegend=False
+        ),
+        row=3, col=1
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=cumulative_series["time"],
+            y=cumulative_series["lower"],
+            mode='lines',
+            fill='tonexty',
+            fillcolor='rgba(255, 0, 0, 0.2)',
+            line=dict(width=0),
+            showlegend=False
+        ),
+        row=3, col=1
+    )
+
+    # Add horizontal line at y=0
+    fig.add_trace(
+        go.Scatter(
+            x=[plot_df["time"].min(), plot_df["time"].max()],
+            y=[0, 0],
+            mode='lines',
+            line=dict(color='grey', dash='dash'),
+            showlegend=False
+        ),
+        row=3, col=1
+    )
+
+    # Update layout for better aesthetics
+    fig.update_layout(
+        width=chart_width,
+        height=chart_height,
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        font=dict(
+            size=tick_font_size,
+            family="Arial"
+        ),
+        title_text="Interactive Plot",
+        hovermode='x unified'
+    )
+
+    # Update each subplot's axes
+    for i in range(1, 4):
+        fig.update_xaxes(
+            title_text="Date",
+            title_font=dict(size=axis_title_font_size, family="Arial"),
+            tickfont=dict(size=tick_font_size),
+            row=i, col=1
+        )
+        fig.update_yaxes(
+            title_font=dict(size=axis_title_font_size, family="Arial"),
+            tickfont=dict(size=tick_font_size),
+            row=i, col=1
+        )
+
+    # Adjust subplot titles font size
+    for annotation in fig['layout']['annotations']:
+        annotation['font'] = dict(size=title_font_size, family="Arial")
+
+    return fig
+
+
 def _draw_matplotlib_plot(plot_df, **plot_params):
     """Make actual matplotlib plot."""
     try:
@@ -245,6 +506,8 @@ def plot(ci_model, **kwargs) -> Union[alt.Chart, Any]:
             plt = _draw_interactive_plot(plot_df, **plot_params)
     elif plot_params["backend"] == "matplotlib":
         plt = _draw_matplotlib_plot(plot_df, **plot_params)
+    elif plot_params["backend"] == "plotly":
+        plt = _draw_plotly_plot(plot_df, **plot_params)
     else:
         raise ValueError(
             "backend must be one of 'altair' or 'matplotlib'. Got"

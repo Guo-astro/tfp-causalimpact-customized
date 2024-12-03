@@ -136,7 +136,8 @@ class CausalImpactData:
             # feature data can be used for forecasting.
             normalized_pre_intervention_features = self.normalized_pre_intervention_data[self.feature_columns]
             normalized_post_intervention_features = self.normalized_after_pre_intervention_data[self.feature_columns]
-            self.normalized_whole_period_features = pd.concat([normalized_pre_intervention_features, normalized_post_intervention_features], axis=0)
+            self.normalized_whole_period_features = pd.concat(
+                [normalized_pre_intervention_features, normalized_post_intervention_features], axis=0)
             self.normalized_whole_period_features["intercept_"] = 1.
         else:
             self.normalized_whole_period_features = None

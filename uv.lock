@@ -998,6 +998,19 @@ wheels = [
 ]
 
 [[package]]
+name = "plotly"
+version = "5.24.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "tenacity" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/4f/428f6d959818d7425a94c190a6b26fbc58035cbef40bf249be0b62a9aedd/plotly-5.24.1.tar.gz", hash = "sha256:dbc8ac8339d248a4bcc36e08a5659bacfe1b079390b8953533f4eb22169b4bae", size = 9479398 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/ae/580600f441f6fc05218bd6c9d5794f4aef072a7d9093b291f1c50a9db8bc/plotly-5.24.1-py3-none-any.whl", hash = "sha256:f67073a1e637eb0dc3e46324d9d51e2fe76e9727c892dde64ddf1e1b51f29089", size = 19054220 },
+]
+
+[[package]]
 name = "protobuf"
 version = "5.29.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1276,6 +1289,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tenacity"
+version = "9.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/94/91fccdb4b8110642462e653d5dcb27e7b674742ad68efd146367da7bdb10/tenacity-9.0.0.tar.gz", hash = "sha256:807f37ca97d62aa361264d497b0e31e92b8027044942bfa756160d908320d73b", size = 47421 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b6/cb/b86984bed139586d01532a587464b5805f12e397594f19f931c4c2fbfa61/tenacity-9.0.0-py3-none-any.whl", hash = "sha256:93de0c98785b27fcf659856aa9f54bfbd399e29969b0621bc7f762bd441b4539", size = 28169 },
+]
+
+[[package]]
 name = "tensorboard"
 version = "2.18.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1407,7 +1429,7 @@ wheels = [
 
 [[package]]
 name = "tfp-causalimpact-customized"
-version = "0.1.14"
+version = "0.1.15"
 source = { editable = "." }
 dependencies = [
     { name = "altair" },
@@ -1415,6 +1437,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "plotly" },
     { name = "tensorflow" },
     { name = "tensorflow-probability" },
     { name = "tf-keras" },
@@ -1432,6 +1455,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.9.3" },
     { name = "numpy", specifier = "<=2.1.0" },
     { name = "pandas", specifier = ">=2.2.3" },
+    { name = "plotly", specifier = ">=5.24.1" },
     { name = "tensorflow", specifier = ">=2.18.0" },
     { name = "tensorflow-probability", specifier = ">=0.25.0" },
     { name = "tf-keras", specifier = ">=2.18.0" },
