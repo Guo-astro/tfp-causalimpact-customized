@@ -553,13 +553,13 @@ def _train_causalimpact_sts(
     extended_outcome_ts = tfp.sts.MaskedTimeSeries(
         time_series=tf.concat([
             ci_data.outcome_ts.time_series,
-            tf.where(intervention_mask, tf.constant(float("nan"), dtype=dtype), ci_data.after_pre_data['y'])
-
+            tf.fill(after_pre_period_length, tf.constant(
+                float("nan"), dtype=dtype))
         ],
             axis=0),
         is_missing=tf.concat([
             ci_data.outcome_ts.is_missing,
-            intervention_mask
+            tf.fill(after_pre_period_length, True)
         ],
             axis=0))
     outcome_sd = tf.convert_to_tensor(
