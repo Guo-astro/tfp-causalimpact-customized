@@ -93,6 +93,6 @@ def process_posterior_quantities(ci_data: cid.CausalImpactData,
   # Format as pd.DataFrame and add the appropriate DatetimeIndex. Use the union
   # of the pre/post data in case the pre/post periods don't cover the full
   # data time period.
-  index = ci_data.model_pre_data.index.union(
-      ci_data.model_after_pre_data.index).sort_values()
+  index = ci_data.normalized_pre_intervention_data.index.union(
+      ci_data.normalized_after_pre_intervention_data.index).sort_values()
   return pd.DataFrame(vals_to_process, columns=col_names, index=index)

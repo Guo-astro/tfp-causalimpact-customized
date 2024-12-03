@@ -51,8 +51,8 @@ class UtilsTest(absltest.TestCase):
     test_data = pd.DataFrame({"y": np.random.randn(n)}, index=time_index)
     ci_data = cid.CausalImpactData(
         test_data,
-        pre_period=(time_index[0], time_index[treat_index - 1]),
-        post_period=(time_index[treat_index], time_index[-1]))
+        pre_intervention_period=(time_index[0], time_index[treat_index - 1]),
+        post_intervention_period=(time_index[treat_index], time_index[-1]))
     vals_to_process = pd.DataFrame(np.random.randn(10, n))
     col_names = ["col_" + str(i) for i in range(vals_to_process.shape[0])]
     df = posterior_processing.process_posterior_quantities(
@@ -61,8 +61,8 @@ class UtilsTest(absltest.TestCase):
     self.assertCountEqual(df.columns, col_names)
 
     # Make sure that inverting the scaling worked correctly.
-    y_pre_mean = ci_data.pre_data["y"].mean()
-    y_pre_std = ci_data.pre_data["y"].std()
+    y_pre_mean = ci_data.pre_intervention_data["y"].mean()
+    y_pre_std = ci_data.pre_intervention_data["y"].std()
     orig_transformed = (vals_to_process * y_pre_std) + y_pre_mean
     _ = orig_transformed.mean(axis=1)
     _ = orig_transformed.std(axis=1)

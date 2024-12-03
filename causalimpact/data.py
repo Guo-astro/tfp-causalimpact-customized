@@ -47,17 +47,17 @@ class CausalImpactData:
 
     Attributes:
       data: Pandas DataFrame of timeseries data.
-      pre_period: Start and end value in data.index for pre-intervention.
+      pre_intervention_period: Start and end value in data.index for pre-intervention.
       post_period: Start and end value in data.index for post-intervention.
-      outcome_column: Timeseries being modeled. Defaults to first column of
+      target_col: Timeseries being modeled. Defaults to first column of
         `data`.
       feature_columns: Subset of data.columns used as covariates. `None` in case
         there are no covariates. Defaults to all non-outcome columns (or `None` if
         there are none).
       standardize_data: Boolean: Whether covariates and outcome were scaled to
         have 0 mean and 1 standard deviation.
-      pre_data: Subset of `data` from `pre_period`. This is unscaled.
-      after_pre_data: Subset of `data` from after the `pre_period`. The time
+      pre_intervention_data: Subset of `data` from `pre_period`. This is unscaled.
+      after_pre_intervention_data: Subset of `data` from after the `pre_period`. The time
         between pre-period and post-period should still be forecasted to make
         accurate post-period predictions. Additionally, users are interested in
         after post-period predictions. This is unscaled.
@@ -70,16 +70,16 @@ class CausalImpactData:
       outcome_scaler: A `standardize.Scaler` object used to transform outcome
         data.
       feature_ts: A pd.DataFrame of the scaled data over just the feature columns.
-      outcome_ts: A tfp.sts.MaskedTimeSeries instance of the outcome data from the
+      pre_intervention_target_ts: A tfp.sts.MaskedTimeSeries instance of the outcome data from the
         `pre_period`.
     """
 
     def __init__(self,
                  data: Union[pd.DataFrame, pd.Series],
-                 pre_period: Tuple[indices.InputDateType, indices.InputDateType],
-                 post_period: Tuple[indices.InputDateType, indices.InputDateType],
+                 pre_intervention_period: Tuple[indices.InputDateType, indices.InputDateType],
+                 post_intervention_period: Tuple[indices.InputDateType, indices.InputDateType],
                  drop_post_period_nan=True,
-                 outcome_column: Optional[Text] = None,
+                 target_col_name: Optional[Text] = None,
                  standardize_data=True,
                  dtype=tf.float32):
         """Constructs a `CausalImpactData` instance.
@@ -87,9 +87,9 @@ class CausalImpactData:
         Args:
           data: Pandas `DataFrame` containing an outcome time series and optional
             feature time series.
-          pre_period: Pre-period start and end (see InputDateType).
-          post_period: Post-period start and end (see InputDateType).
-          outcome_column: String giving the name of the outcome column in `data`. If
+          pre_intervention_period: Pre-period start and end (see InputDateType).
+          post_intervention_period: Post-period start and end (see InputDateType).
+          target_col_name: String giving the name of the outcome column in `data`. If
             not specified, the first column in `data` is used.
           standardize_data: If covariates and output should be standardized.
           dtype: The dtype to use throughout computation.
@@ -97,59 +97,61 @@ class CausalImpactData:
         # This is a no-op in case data is a pd.DataFrame. It is common enough to
         # pass a pd.Series that this is useful here.
         data = pd.DataFrame(data)
-        self.pre_period, self.post_period = indices.parse_and_validate_date_data(
-            data=data, pre_period=pre_period, post_period=post_period)
-        self.data, self.outcome_column, self.feature_columns = (
-            _validate_data_and_columns(data, outcome_column))
+        self.pre_intervention_period, self.post_period = indices.parse_and_validate_date_data(
+            data=data, pre_intervention_period=pre_intervention_period,
+            post_intervention_period=post_intervention_period)
+        self.data, self.target_col, self.feature_columns = (
+            _validate_data_and_columns(data, target_col_name))
         del data  # To insure the unfiltered DataFrame is not used again.
         self.standardize_data = standardize_data
-        self.pre_data = self.data.loc[(self.data.index >= self.pre_period[0])
-                                      & (self.data.index <= self.pre_period[1])]
+        self.pre_intervention_data = self.data.loc[(self.data.index >= self.pre_intervention_period[0])
+                                                   & (self.data.index <= self.pre_intervention_period[1])]
         # after_pre_data intentionally includes everything after the end of the
         # pre-period since the time between pre- and post-period needs to be
         # accounted for and we actually want to see predictions after the post
         # period.
-        self.after_pre_data = self.data.loc[self.data.index > self.pre_period[1]]
-        self.num_steps_forecast = len(self.after_pre_data.index)
+        self.after_pre_intervention_data = self.data.loc[self.data.index > self.pre_intervention_period[1]]
+        self.num_steps_forecast = len(self.after_pre_intervention_data.index)
 
         if self.standardize_data:
-            scaler = standardize.Scaler().fit(self.pre_data)
+            scaler = standardize.Scaler().fit(self.pre_intervention_data)
             self.outcome_scaler = standardize.Scaler().fit(
-                self.pre_data[self.outcome_column])
-            self.model_pre_data = scaler.transform(self.pre_data)
-            self.model_after_pre_data = scaler.transform(self.after_pre_data)
+                self.pre_intervention_data[self.target_col])
+            self.normalized_pre_intervention_data = scaler.transform(self.pre_intervention_data)
+            self.normalized_after_pre_intervention_data = scaler.transform(self.after_pre_intervention_data)
         else:
             self.outcome_scaler = None
-            self.model_pre_data = self.pre_data
-            self.model_after_pre_data = self.after_pre_data
+            self.normalized_pre_intervention_data = self.pre_intervention_data
+            self.normalized_after_pre_intervention_data = self.after_pre_intervention_data
         if drop_post_period_nan:
-            self.model_after_pre_data = self.model_after_pre_data.dropna()
+            self.normalized_after_pre_intervention_data = self.normalized_after_pre_intervention_data.dropna()
 
-        out_ts = tf.convert_to_tensor(
-            self.model_pre_data[self.outcome_column], dtype=dtype)
-        self.outcome_ts = tfp.sts.MaskedTimeSeries(
-            time_series=out_ts, is_missing=tf.math.is_nan(out_ts))
+        normalized_pre_intervention_target_tf_tensor = tf.convert_to_tensor(
+            self.normalized_pre_intervention_data[self.target_col], dtype=dtype)
+        self.pre_intervention_target_ts = tfp.sts.MaskedTimeSeries(
+            time_series=normalized_pre_intervention_target_tf_tensor,
+            is_missing=tf.math.is_nan(normalized_pre_intervention_target_tf_tensor))
         if self.feature_columns is not None:
             # Here we have to use the FULL time series so that the post-period
             # feature data can be used for forecasting.
-            features_pre = self.model_pre_data[self.feature_columns]
-            features_post = self.model_after_pre_data[self.feature_columns]
-            self.feature_ts = pd.concat([features_pre, features_post], axis=0)
-            self.feature_ts["intercept_"] = 1.
+            normalized_pre_intervention_features = self.normalized_pre_intervention_data[self.feature_columns]
+            normalized_post_intervention_features = self.normalized_after_pre_intervention_data[self.feature_columns]
+            self.normalized_whole_period_features = pd.concat([normalized_pre_intervention_features, normalized_post_intervention_features], axis=0)
+            self.normalized_whole_period_features["intercept_"] = 1.
         else:
-            self.feature_ts = None
+            self.normalized_whole_period_features = None
 
 
 def _validate_data_and_columns(data: pd.DataFrame,
-                               outcome_column: Optional[str]):
+                               target_column_name: Optional[str]):
     """Validates data and sets defaults for feature and outcome columns.
 
-    By default, the first column of the dataframe will be used as the outcome,
+    By default, the first column of the dataframe will be used as the target_column,
     and the rest will be used as features, but these can instead be provided.
 
     Args:
       data: Input dataframe for analysis.
-      outcome_column: Optional string to use for the outcome.
+      target_column_name: Optional string to use for the target_column_name.
 
     Raises:
       KeyError: if `outcome_column` is not in the data.
@@ -160,14 +162,14 @@ def _validate_data_and_columns(data: pd.DataFrame,
     """
 
     # Check outcome column -- if not specified, default is the first column.
-    if outcome_column is None:
-        outcome_column = data.columns[0]
-    if outcome_column not in data.columns:
-        raise KeyError(f"Specified `outcome_column` ({outcome_column}) not found "
+    if target_column_name is None:
+        target_column_name = data.columns[0]
+    if target_column_name not in data.columns:
+        raise KeyError(f"Specified `outcome_column` ({target_column_name}) not found "
                        f"in data")
 
     # Make sure outcome column is not constant
-    if data[outcome_column].std(skipna=True, ddof=0) == 0:
+    if data[target_column_name].std(skipna=True, ddof=0) == 0:
         raise ValueError("Input response cannot be constant.")
 
     # Feature columns are all those other than the output column. Use
@@ -178,16 +180,16 @@ def _validate_data_and_columns(data: pd.DataFrame,
         feature_columns = None
     else:
         original_column_order = data.columns
-        column_differences = set(data.columns).difference([outcome_column])
+        column_differences = set(data.columns).difference([target_column_name])
         feature_columns = [
             col for col in original_column_order if col in column_differences
         ]
-    data = data[[outcome_column] + (feature_columns or [])]
-    if data[outcome_column].count() < 3:  # Series.count() is for non-NaN values.
+    data = data[[target_column_name] + (feature_columns or [])]
+    if data[target_column_name].count() < 3:  # Series.count() is for non-NaN values.
         raise ValueError("Input data must have at least 3 observations.")
     if data[feature_columns or []].isna().values.any():
         raise ValueError("Input data cannot have any missing values.")
     if not data.dtypes.map(pd.api.types.is_numeric_dtype).all():
         raise ValueError("Input data must contain only numeric values.")
 
-    return data, outcome_column, feature_columns
+    return data, target_column_name, feature_columns

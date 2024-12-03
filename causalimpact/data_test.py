@@ -51,13 +51,13 @@ class DataCreationTest(parameterized.TestCase):
   def testCorrectDataWithOnlyOutcome(self):
     df = self._data[["y"]]
     ci_data = cid.CausalImpactData(
-        df, pre_period=self._pre_period, post_period=self._post_period)
-    self.assertEqual(ci_data.outcome_column, "y")
+        df, pre_intervention_period=self._pre_period, post_intervention_period=self._post_period)
+    self.assertEqual(ci_data.target_col, "y")
     self.assertIsNone(ci_data.feature_columns)
     pre_index = self._data.index[self._data.index < self._treatment_start]
     post_index = self._data.index[self._data.index >= self._treatment_start]
-    self.assertTrue(ci_data.model_pre_data.index.equals(pre_index))
-    self.assertTrue(ci_data.model_after_pre_data.index.equals(post_index))
+    self.assertTrue(ci_data.normalized_pre_intervention_data.index.equals(pre_index))
+    self.assertTrue(ci_data.normalized_after_pre_intervention_data.index.equals(post_index))
 
   @parameterized.named_parameters([
       {
@@ -75,29 +75,29 @@ class DataCreationTest(parameterized.TestCase):
                                      expected_feature_columns):
     ci_data = cid.CausalImpactData(
         self._data,
-        pre_period=self._pre_period,
-        post_period=self._post_period,
-        outcome_column=outcome_column)
-    self.assertEqual(ci_data.outcome_column, "y")
+        pre_intervention_period=self._pre_period,
+        post_intervention_period=self._post_period,
+        target_col_name=outcome_column)
+    self.assertEqual(ci_data.target_col, "y")
     self.assertSetEqual(
         set(ci_data.feature_columns), set(expected_feature_columns))
     self.assertSetEqual(
-        set(ci_data.pre_data.columns), set(["y"] + expected_feature_columns))
+        set(ci_data.pre_intervention_data.columns), set(["y"] + expected_feature_columns))
     self.assertSetEqual(
-        set(ci_data.after_pre_data.columns),
+        set(ci_data.after_pre_intervention_data.columns),
         set(["y"] + expected_feature_columns))
     pre_index = self._data.index[self._data.index < self._treatment_start]
     post_index = self._data.index[self._data.index >= self._treatment_start]
-    self.assertTrue(ci_data.pre_data.index.equals(pre_index))
-    self.assertTrue(ci_data.after_pre_data.index.equals(post_index))
+    self.assertTrue(ci_data.pre_intervention_data.index.equals(pre_index))
+    self.assertTrue(ci_data.after_pre_intervention_data.index.equals(post_index))
 
   def testFailsWhenOutcomeDoesntExist(self):
     with self.assertRaises(KeyError):
       cid.CausalImpactData(
           self._data,
-          pre_period=self._pre_period,
-          post_period=self._post_period,
-          outcome_column="z")
+          pre_intervention_period=self._pre_period,
+          post_intervention_period=self._post_period,
+          target_col_name="z")
 
   @parameterized.named_parameters([{
       "testcase_name": "NoStandardize",
@@ -109,8 +109,8 @@ class DataCreationTest(parameterized.TestCase):
   def testStandardize(self, standardize_data):
     ci_data = cid.CausalImpactData(
         self._data,
-        pre_period=self._pre_period,
-        post_period=self._post_period,
+        pre_intervention_period=self._pre_period,
+        post_intervention_period=self._post_period,
         standardize_data=standardize_data)
     pre_time = pd.to_datetime("2016-02-20 22:41:20")
     post_time = pd.to_datetime("2016-02-20 22:51:20")
@@ -121,13 +121,13 @@ class DataCreationTest(parameterized.TestCase):
     # on looking at the numbers).
     if standardize_data:
       pd.testing.assert_series_equal(
-          ci_data.model_pre_data.iloc[0],
+          ci_data.normalized_pre_intervention_data.iloc[0],
           pd.Series([-0.718908, 1.684957, 0.705064], index=index,
                     name=pre_time),
           # Allow minor differences due to encoding.
           rtol=0.01)
       pd.testing.assert_series_equal(
-          ci_data.model_after_pre_data.iloc[0],
+          ci_data.normalized_after_pre_intervention_data.iloc[0],
           pd.Series([0.355322, -1.456488, -2.652383],
                     index=index,
                     name=post_time),
@@ -135,10 +135,10 @@ class DataCreationTest(parameterized.TestCase):
           rtol=0.01)
     else:
       pd.testing.assert_series_equal(
-          ci_data.pre_data.iloc[0],
+          ci_data.pre_intervention_data.iloc[0],
           pd.Series([110.0, 134., 128], index=index, name=pre_time))
       pd.testing.assert_series_equal(
-          ci_data.after_pre_data.iloc[0],
+          ci_data.after_pre_intervention_data.iloc[0],
           pd.Series([123., 123., 123.], index=index, name=post_time),
       )
 
@@ -147,7 +147,7 @@ class DataCreationTest(parameterized.TestCase):
     na_data.loc[self._treatment_start, "x1"] = np.nan
     with self.assertRaises(ValueError):
       cid.CausalImpactData(
-          na_data, pre_period=self._pre_period, post_period=self._post_period)
+          na_data, pre_intervention_period=self._pre_period, post_intervention_period=self._post_period)
 
 
 if __name__ == "__main__":

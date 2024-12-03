@@ -274,9 +274,9 @@ def fit_causalimpact(data: pd.DataFrame,
 
         ci_data = cid.CausalImpactData(
             data=data,
-            pre_period=pre_period,
-            post_period=post_period,
-            outcome_column=data_options.outcome_column,
+            pre_intervention_period=pre_period,
+            post_intervention_period=post_period,
+            target_col_name=data_options.outcome_column,
             standardize_data=data_options.standardize_data,
             dtype=data_options.dtype)
         posterior_samples, posterior_means, posterior_trajectories = _train_causalimpact_sts(
@@ -542,50 +542,49 @@ def _train_causalimpact_sts(
     # when just the seed changes. Thus sanitize before tracing/compiling.
     seed = tfp.random.sanitize_seed(seed)
 
-    design_matrix = None if ci_data.feature_ts is None else tf.convert_to_tensor(
-        ci_data.feature_ts.values, dtype=dtype)
+    design_matrix = None if ci_data.normalized_whole_period_features is None else tf.convert_to_tensor(
+        ci_data.normalized_whole_period_features.values, dtype=dtype)
 
     # To combine posterior sampling with predictions, instead of just using
     # the pre-period, also use the post-period, but with all values being NaN.
-    after_pre_period_length = ci_data.model_after_pre_data.shape[0]
-    intervention_mask = tf.cast(ci_data.after_pre_data['intervention'] == 1, dtype=tf.bool)
+    normalized_after_pre_intervention_period_length = ci_data.normalized_after_pre_intervention_data.shape[0]
 
-    extended_outcome_ts = tfp.sts.MaskedTimeSeries(
+    extended_target_ts = tfp.sts.MaskedTimeSeries(
         time_series=tf.concat([
-            ci_data.outcome_ts.time_series,
-            tf.fill(after_pre_period_length, tf.constant(
+            ci_data.pre_intervention_target_ts.time_series,
+            tf.fill(normalized_after_pre_intervention_period_length, tf.constant(
                 float("nan"), dtype=dtype))
         ],
             axis=0),
         is_missing=tf.concat([
-            ci_data.outcome_ts.is_missing,
-            tf.fill(after_pre_period_length, True)
+            ci_data.pre_intervention_target_ts.is_missing,
+            tf.fill(normalized_after_pre_intervention_period_length, True)
         ],
             axis=0))
-    outcome_sd = tf.convert_to_tensor(
-        np.nanstd(ci_data.outcome_ts.time_series, ddof=1), dtype=dtype)
+    pre_intervention_target_ts_standard_deviation = tf.convert_to_tensor(
+        np.nanstd(ci_data.pre_intervention_target_ts.time_series, ddof=1), dtype=dtype)
     # TODO(colcarroll,jburnim): Move constants to be module-level and commented.
     r2 = 0.8
     if design_matrix is not None:
         observation_noise_scale = (
-                tf.cast(tf.math.sqrt(1 - r2), dtype=dtype) * outcome_sd)
+                tf.cast(tf.math.sqrt(1 - r2), dtype=dtype) * pre_intervention_target_ts_standard_deviation)
     else:
-        observation_noise_scale = outcome_sd
-    level_scale = tf.ones([], dtype=dtype) * prior_level_sd * outcome_sd
-    seasonal_drift_scales = 0.01 * outcome_sd * tf.ones(
+        observation_noise_scale = pre_intervention_target_ts_standard_deviation
+    level_scale = tf.ones([], dtype=dtype) * prior_level_sd * pre_intervention_target_ts_standard_deviation
+    seasonal_drift_scales = 0.01 * pre_intervention_target_ts_standard_deviation * tf.ones(
         shape=[len(seasons)], dtype=dtype)
-    if ci_data.feature_ts is None:
+    if ci_data.normalized_whole_period_features is None:
         weights = tf.zeros([0], dtype=dtype)
     else:
-        weights = tf.zeros(ci_data.feature_ts.shape[-1:], dtype=dtype)
+        weights = tf.zeros(ci_data.normalized_whole_period_features.shape[-1:], dtype=dtype)
 
-    level = tf.zeros_like(extended_outcome_ts.time_series)
-    slope = tf.zeros_like(extended_outcome_ts.time_series)
+    level = tf.zeros_like(extended_target_ts.time_series)
+    slope = tf.zeros_like(extended_target_ts.time_series)
 
     samples, posterior_means, posterior_predictive_samples = _run_gibbs_sampler(
         sts_model=model,
-        outcome_ts=extended_outcome_ts,
-        outcome_sd=outcome_sd,
+        outcome_ts=extended_target_ts,
+        outcome_sd=pre_intervention_target_ts_standard_deviation,
         design_matrix=design_matrix,
         num_results=num_results,
         num_warmup_steps=num_warmup_steps,
@@ -662,8 +661,8 @@ def _compute_impact(
         raise ValueError("`alpha` must be between 0 and 1.")
 
     # Extract attributes of data object that we'll need for computing impact.
-    observed_ts_pre = ci_data.pre_data[ci_data.outcome_column]
-    observed_ts_post = ci_data.after_pre_data[ci_data.outcome_column]
+    observed_ts_pre = ci_data.pre_intervention_data[ci_data.target_col]
+    observed_ts_post = ci_data.after_pre_intervention_data[ci_data.target_col]
     # Filter out data after the post-period.
     observed_ts_post = observed_ts_post.loc[
         (observed_ts_post.index >= ci_data.post_period[0])
@@ -901,7 +900,7 @@ def _compute_impact_estimates(posterior_trajectory_summary: pd.DataFrame,
     # The in-between period and after post-period should only have observed and
     # posteriors (to match original).
     impact_estimates.loc[
-        ((impact_estimates.index > ci_data.pre_period[1]) &
+        ((impact_estimates.index > ci_data.pre_intervention_period[1]) &
          (impact_estimates.index < ci_data.post_period[0])) |
         (impact_estimates.index > ci_data.post_period[1]),
         impact_estimates.columns.difference(
@@ -922,11 +921,11 @@ def _compute_impact_estimates(posterior_trajectory_summary: pd.DataFrame,
     # original timeseries.
     impact_estimates = impact_estimates.reindex(
         ci_data.data.index, copy=False, fill_value=np.nan)
-    impact_estimates["observed"] = ci_data.data[ci_data.outcome_column]
+    impact_estimates["observed"] = ci_data.data[ci_data.target_col]
 
     # Add the pre/post period dates as columns for easier plotting.
-    impact_estimates["pre_period_start"] = ci_data.pre_period[0]
-    impact_estimates["pre_period_end"] = ci_data.pre_period[1]
+    impact_estimates["pre_period_start"] = ci_data.pre_intervention_period[0]
+    impact_estimates["pre_period_end"] = ci_data.pre_intervention_period[1]
     impact_estimates["post_period_start"] = ci_data.post_period[0]
     impact_estimates["post_period_end"] = ci_data.post_period[1]
 

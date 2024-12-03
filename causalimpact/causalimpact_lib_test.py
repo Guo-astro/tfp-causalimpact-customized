@@ -297,12 +297,12 @@ class CausalImpactTest(parameterized.TestCase):
   def testModelTrainingNoCovariates(self):
     ci_data = cid.CausalImpactData(
         self.data["y"],
-        pre_period=self.pre_period,
-        post_period=self.post_period,
+        pre_intervention_period=self.pre_period,
+        post_intervention_period=self.post_period,
         dtype=tf.float64)
     sts_model = causalimpact_lib._build_default_gibbs_model(
-        ci_data.feature_ts,
-        ci_data.outcome_ts,
+        ci_data.normalized_whole_period_features,
+        ci_data.pre_intervention_target_ts,
         outcome_sd=tf.constant(1., dtype=tf.float64),
         level_scale=tf.constant(0.01, dtype=tf.float64),
         dtype=tf.float64,
@@ -320,8 +320,8 @@ class CausalImpactTest(parameterized.TestCase):
     seed = (1, 1)
     ci_data = cid.CausalImpactData(
         self.data,
-        pre_period=self.pre_period,
-        post_period=self.post_period,
+        pre_intervention_period=self.pre_period,
+        post_intervention_period=self.post_period,
         dtype=tf.float32)
     posterior_samples, *_ = causalimpact_lib._train_causalimpact_sts(
         ci_data=ci_data,
@@ -417,8 +417,8 @@ class CausalImpactTest(parameterized.TestCase):
         observed_ts_full=test_impact_data["observed_ts_full"],
         ci_data=cid.CausalImpactData(
             data=test_impact_data["observed_ts_full"],
-            pre_period=test_impact_data["pre_period"],
-            post_period=test_impact_data["post_period"],
+            pre_intervention_period=test_impact_data["pre_period"],
+            post_intervention_period=test_impact_data["post_period"],
         ),
         quantiles=(0.025, 0.975))
 

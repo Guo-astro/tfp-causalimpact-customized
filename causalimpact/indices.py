@@ -29,29 +29,29 @@ OutputPeriodType = Tuple[OutputDateType, OutputDateType]
 
 def parse_and_validate_date_data(
     data: pd.DataFrame,
-    pre_period: InputPeriodType,
-    post_period: InputPeriodType,
+    pre_intervention_period: InputPeriodType,
+    post_intervention_period: InputPeriodType,
 ) -> Tuple[OutputPeriodType, OutputPeriodType]:
   """Parses and validates date arguments.
 
   Args:
     data: Pandas `DataFrame` containing an outcome time series and optional
       feature time series.
-    pre_period: Tuple of strings giving pre-period start/end date-times (the
+    pre_intervention_period: Tuple of strings giving pre-period start/end date-times (the
       date-time format should match that of data.index).
-    post_period: Tuple of strings giving post-period start/end date-times (the
+    post_intervention_period: Tuple of strings giving post-period start/end date-times (the
       date-time format should match that of data.index).
 
   Returns:
     A converted pre_period and post_period, which are all of the same type as
     `data.index`.
   """
-  pre_period = tuple([_convert_date_to_index_type(p, data) for p in pre_period])
+  pre_intervention_period = tuple([_convert_date_to_index_type(p, data) for p in pre_intervention_period])
   post_period = tuple(
       [_convert_date_to_index_type(p, data) for p in post_period])
-  pre_period, post_period = _parse_and_validate_periods(pre_period, post_period,
-                                                        data)
-  return pre_period, post_period
+  pre_intervention_period, post_period = _parse_and_validate_periods(pre_intervention_period, post_period,
+                                                                     data)
+  return pre_intervention_period, post_period
 
 
 def _parse_and_validate_periods(

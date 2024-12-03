@@ -131,7 +131,7 @@ class WrapperTest(parameterized.TestCase):
   def testParseAndValidateData(self, pre_period, post_period):
     """Test different datetime arguments are correctly handled."""
     pre_period, post_period = indices.parse_and_validate_date_data(
-        data=self.data, pre_period=pre_period, post_period=post_period)
+        data=self.data, pre_intervention_period=pre_period, post_intervention_period=post_period)
 
     self.assertTupleEqual(pre_period, (pd.to_datetime("2016-02-20 22:41:20"),
                                        pd.to_datetime("2016-02-20 22:43:00")))
@@ -148,7 +148,7 @@ class WrapperTest(parameterized.TestCase):
     data = self.data.copy()
     data.index = np.arange(data.shape[0])
     pre_period, post_period = indices.parse_and_validate_date_data(
-        data=data, pre_period=pre_period, post_period=post_period)
+        data=data, pre_intervention_period=pre_period, post_intervention_period=post_period)
 
     self.assertTupleEqual(pre_period, (0, 10))
     self.assertTupleEqual(post_period, (11, 90))
