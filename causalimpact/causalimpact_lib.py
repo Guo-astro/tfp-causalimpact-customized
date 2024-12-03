@@ -665,8 +665,8 @@ def _compute_impact(
     observed_ts_post = ci_data.after_pre_intervention_data[ci_data.target_col]
     # Filter out data after the post-period.
     observed_ts_post = observed_ts_post.loc[
-        (observed_ts_post.index >= ci_data.post_period[0])
-        & (observed_ts_post.index <= ci_data.post_period[1])]
+        (observed_ts_post.index >= ci_data.post_intervention_period[0])
+        & (observed_ts_post.index <= ci_data.post_intervention_period[1])]
     observed_ts_full = pd.concat([observed_ts_pre, observed_ts_post], axis=0)
 
     # Get samples of posterior predictive trajectories and posterior means.
@@ -684,7 +684,7 @@ def _compute_impact(
     trajectory_dict = _compute_impact_trajectories(
         posterior_trajectories,
         observed_ts_full,
-        treatment_start=ci_data.post_period[0])
+        treatment_start=ci_data.post_intervention_period[0])
 
     # Create time series of mean and lower/upper quantiles for the point and
     # cumulative predictions.
@@ -700,7 +700,7 @@ def _compute_impact(
         posterior_trajectory_summary=posterior_trajectory_summary,
         trajectory_dict=trajectory_dict,
         observed_ts_post=observed_ts_post,
-        post_period=ci_data.post_period,
+        post_period=ci_data.post_intervention_period,
         quantiles=quantiles,
         alpha=alpha)
     return series, summary
@@ -877,7 +877,7 @@ def _compute_impact_estimates(posterior_trajectory_summary: pd.DataFrame,
             observed_ts_full - posterior_trajectory_summary["posterior_mean"])
     point_effects_mean = point_effects_mean.to_frame(name="point_effects_mean")
     cum_effects_mean_base = point_effects_mean.copy()
-    zero_inds = point_effects_mean.index < ci_data.post_period[0]
+    zero_inds = point_effects_mean.index < ci_data.post_intervention_period[0]
     cum_effects_mean_base.loc[zero_inds] = 0
     cum_effects_mean = cum_effects_mean_base.cumsum()
     cum_effects_mean.columns = ["cumulative_effects_mean"]
@@ -901,8 +901,8 @@ def _compute_impact_estimates(posterior_trajectory_summary: pd.DataFrame,
     # posteriors (to match original).
     impact_estimates.loc[
         ((impact_estimates.index > ci_data.pre_intervention_period[1]) &
-         (impact_estimates.index < ci_data.post_period[0])) |
-        (impact_estimates.index > ci_data.post_period[1]),
+         (impact_estimates.index < ci_data.post_intervention_period[0])) |
+        (impact_estimates.index > ci_data.post_intervention_period[1]),
         impact_estimates.columns.difference(
             ["observed", "posterior_mean", "posterior_lower", "posterior_upper"]
         )] = np.nan
@@ -926,8 +926,8 @@ def _compute_impact_estimates(posterior_trajectory_summary: pd.DataFrame,
     # Add the pre/post period dates as columns for easier plotting.
     impact_estimates["pre_period_start"] = ci_data.pre_intervention_period[0]
     impact_estimates["pre_period_end"] = ci_data.pre_intervention_period[1]
-    impact_estimates["post_period_start"] = ci_data.post_period[0]
-    impact_estimates["post_period_end"] = ci_data.post_period[1]
+    impact_estimates["post_period_start"] = ci_data.post_intervention_period[0]
+    impact_estimates["post_period_end"] = ci_data.post_intervention_period[1]
 
     return impact_estimates
 

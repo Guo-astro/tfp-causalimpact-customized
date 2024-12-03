@@ -48,7 +48,7 @@ class CausalImpactData:
     Attributes:
       data: Pandas DataFrame of timeseries data.
       pre_intervention_period: Start and end value in data.index for pre-intervention.
-      post_period: Start and end value in data.index for post-intervention.
+      post_intervention_period: Start and end value in data.index for post-intervention.
       target_col: Timeseries being modeled. Defaults to first column of
         `data`.
       feature_columns: Subset of data.columns used as covariates. `None` in case
@@ -97,7 +97,7 @@ class CausalImpactData:
         # This is a no-op in case data is a pd.DataFrame. It is common enough to
         # pass a pd.Series that this is useful here.
         data = pd.DataFrame(data)
-        self.pre_intervention_period, self.post_period = indices.parse_and_validate_date_data(
+        self.pre_intervention_period, self.post_intervention_period = indices.parse_and_validate_date_data(
             data=data, pre_intervention_period=pre_intervention_period,
             post_intervention_period=post_intervention_period)
         self.data, self.target_col, self.feature_columns = (
