@@ -24,6 +24,8 @@ import tensorflow_probability as tfp
 
 
 def _draw_matplotlib_plot(plot_df, **plot_params):
+    import japanize_matplotlib
+
     """Make actual matplotlib plot."""
     try:
         import matplotlib.pyplot as mplt  # pylint: disable=g-import-not-at-top
