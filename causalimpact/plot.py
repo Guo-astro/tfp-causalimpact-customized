@@ -107,7 +107,7 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
         original_series["upper"],
         alpha=0.2,
     )
-    axes[0].legend(loc="upper right", bbox_to_anchor=(1.05, 1), fontsize=plot_params.get("legend_font_size", 9))
+    axes[0].legend(loc="upper left", bbox_to_anchor=(1.05, 1), fontsize=plot_params.get("legend_font_size", 9))
 
     # Plot the pointwise effect with the pre-period and post-period marked
     # And prediction and confidence intervals
@@ -125,7 +125,7 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
     )
     # Add horizontal dotted line at y=0
     axes[1].axhline(0, color="grey", linestyle="-")
-    axes[1].legend(loc="upper right", bbox_to_anchor=(1.05, 1), fontsize=plot_params.get("legend_font_size", 9))
+    axes[1].legend(loc="upper left", bbox_to_anchor=(1.05, 1), fontsize=plot_params.get("legend_font_size", 9))
 
     # Plot the cumulative effect with the pre-period and post-period marked
     # And prediction and confidence intervals
@@ -143,7 +143,7 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
     )
     # Add horizontal dotted line at y=0
     axes[2].axhline(0, color="grey", linestyle="-")
-    axes[2].legend(loc="upper right", bbox_to_anchor=(1.05, 1), fontsize=plot_params.get("legend_font_size", 9))
+    axes[2].legend(loc="upper left", bbox_to_anchor=(1.05, 1), fontsize=plot_params.get("legend_font_size", 9))
 
     return fig
 
