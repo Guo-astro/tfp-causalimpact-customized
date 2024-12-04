@@ -92,15 +92,15 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
 
         # Draw vertical lines based on the presence of data points
         if (df["time"] < pre_start).any():
-            ax.axvline(pre_start, color="grey", linestyle="--", label="Pre-Period Start")
+            ax.axvline(pre_start, color="grey", linestyle="--", label=legend_label_pre_period_start)
 
         if ((df["time"] > pre_end) & (df["time"] < post_start)).any():
-            ax.axvline(pre_end, color="grey", linestyle="--", label="Pre-Period End")
+            ax.axvline(pre_end, color="grey", linestyle="--", label=legend_label_pre_period_end)
 
-        ax.axvline(post_start, color="grey", linestyle="--", label="Post-Period Start")
+        ax.axvline(post_start, color="grey", linestyle="--", label=legend_label_post_period_start)
 
         if (df["time"] > post_end).any():
-            ax.axvline(post_end, color="grey", linestyle="--", label="Post-Period End")
+            ax.axvline(post_end, color="grey", linestyle="--", label=legend_label_post_period_end)
 
     # Extract plot parameters with default values
     chart_width_px = plot_options.get("chart_width", 800)
@@ -112,7 +112,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
 
     x_axis_label = plot_options.get("xlabel", "Time")
     y_axis_labels = plot_options.get("ylabels", ["Observed", "Pointwise Effect", "Cumulative Effect"])
-    plot_title = plot_options.get("title", None)
+    plot_title = plot_options.get("title", "")
     title_font_size = plot_options.get("title_font_size", 12)
     axis_label_font_size = plot_options.get("axis_title_font_size", 10)
     y_formatter_option = plot_options.get("y_formatter", "millions")
@@ -124,14 +124,16 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     legend_label_observed = legend_labels.get("observed", "Observed")
     legend_label_pointwise = legend_labels.get("pointwise", "Pointwise")
     legend_label_cumulative = legend_labels.get("cumulative", "Cumulative")
+    legend_label_pre_period_start = legend_labels.get("pre-period-start", "Pre-Period Start")
+    legend_label_pre_period_end = legend_labels.get("pre-period-end", "Pre-Period End")
+    legend_label_post_period_start = legend_labels.get("post-period-start", "Post-Period Start")
+    legend_label_post_period_end = legend_labels.get("post-period-end", "Post-Period End")
 
     # Define y-axis formatter based on the selected option
     if y_formatter_option == 'millions':
         y_formatter = lambda x, pos: f'{x * 1e-6:.1f}{y_formatter_unit}'
     elif y_formatter_option == 'thousands':
         y_formatter = lambda x, pos: f'{x * 1e-3:.1f}{y_formatter_unit}'
-    elif callable(y_formatter_option):
-        legend_labelsy_formatter = y_formatter_option
     else:
         # Default formatter without scaling
         y_formatter = lambda x, pos: f'{x}'
@@ -290,6 +292,16 @@ def plot(ci_model, **kwargs) -> Union[alt.Chart, Any]:
         "axes0_legend_label_mean": "Mean",
         "axes0_legend_label_observed": "Observed",
         "y_formatter_unit": "dollar",
+        "legend_labels": {
+            "mean": "Mean",
+            "observed": "Observed",
+            "pointwise": "Pointwise",
+            "cumulative": "Cumulative",
+            "pre-period-start": "Pre-Period Start",
+            "pre-period-end": "Pre-Period End",
+            "post-period-start": "Post-Period Start",
+            "post-period-end": "Post-Period End",
+        },
 
     }
     if kwargs:
