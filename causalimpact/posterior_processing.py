@@ -21,40 +21,67 @@ from causalimpact import data as cid
 import numpy as np
 import pandas as pd
 
+import pandas as pd
+from typing import Text, Tuple, Union
+
 
 def calculate_trajectory_quantiles(
-    trajectories: pd.DataFrame,
-    column_prefix: Text = "predicted",
-    quantiles: Tuple[float, float] = (0.025, 0.975)
-) -> Union[pd.DataFrame, pd.Series]:
-  """Calculates timepoint-wise quantiles of trajectories.
+        trajectories: pd.DataFrame,
+        column_prefix: Text = "predicted",
+        quantiles: Tuple[float, float] = (0.025, 0.975)
+) -> pd.DataFrame:
+  """
+  Calculates timepoint-wise quantiles of trajectory samples.
 
-  This function is used to calculate timepoint-wise quantiles for both the
-  posterior predictions and the cumulative predictions.
+  This function computes specified quantiles for each time point across multiple trajectory samples. It is applicable to both posterior and cumulative predictions, providing uncertainty bounds for the trajectories.
 
   Args:
-    trajectories: pd.DataFrame of samples to take quantiles of. `trajectories`
-      should have a DatetimeIndex (so rows are time points) and columns for each
-      sample. The quantiles are calculated across columns (i.e. across samples
-      for each time point) using the 'axis=1' argument in quantile().
-    column_prefix: string giving the prefix to use for the column names of the
-      quantiles; e.g. if the trajectories being passed are the cumulative ones,
-      use column_prefix = "cumulative" and the returned dataframe will have
-      columns "cumulative_lower" and "cumulative_upper".
-    quantiles: floats in (0, 1) giving the quantiles to calculate.
+      trajectories (pd.DataFrame):
+          DataFrame containing trajectory samples. The DataFrame should have a
+          DatetimeIndex where each row represents a time point and each column
+          represents a different sample.
+
+      column_prefix (str, optional):
+          Prefix for the resulting quantile columns in the output DataFrame.
+          For example, use "cumulative" for cumulative trajectories to obtain
+          columns named "cumulative_lower" and "cumulative_upper". Defaults to "predicted".
+
+      quantiles (Tuple[float, float], optional):
+          A tuple specifying the lower and upper quantiles to compute. Each value
+          should be between 0 and 1. Defaults to (0.025, 0.975), representing the
+          2.5th and 97.5th percentiles.
 
   Returns:
-    quantiles_df: dataframe with columns for lower/upper quantiles of
-      `trajectories` and a corresponding DatetimeIndex.
+      pd.DataFrame:
+          A DataFrame containing the calculated quantiles for each time point. The
+          DataFrame retains the original DatetimeIndex and includes two new columns
+          named using the provided `column_prefix`, such as "predicted_lower" and
+          "predicted_upper".
+
+  Raises:
+      ValueError:
+          If `quantiles` does not contain exactly two values or if they are not
+          within the (0, 1) interval.
   """
 
-  column_names = [column_prefix + "_" + suffix for suffix in ["lower", "upper"]]
-  # Use axis=1 to summarize across samples for each time point.
-  # With two quantiles, quantile() returns a pd.DataFrame of size
-  # 2 x (number of time points), so use transpose() to put time back in
-  # the rows.
-  quantiles_df = trajectories.quantile(q=quantiles, axis=1).transpose()
-  quantiles_df.columns = column_names
+  # Validate the quantiles input
+  if len(quantiles) != 2 or not all(0 < q < 1 for q in quantiles):
+    raise ValueError("`quantiles` must be a tuple of two floats between 0 and 1.")
+
+  # Define the suffixes for the quantile columns
+  quantile_suffixes = ["lower", "upper"]
+  quantile_column_names = [f"{column_prefix}_{suffix}" for suffix in quantile_suffixes]
+
+  # Calculate the quantiles across samples for each time point
+  quantiles_calculated = trajectories.quantile(q=quantiles, axis=1)
+
+  # Transpose the result to have time points as rows
+  quantiles_df = quantiles_calculated.transpose()
+
+  # Assign the new column names based on the prefix and quantile suffixes
+  quantiles_df.columns = quantile_column_names
+
+  # Ensure the index matches the original trajectories' index
   quantiles_df.index = trajectories.index
 
   return quantiles_df

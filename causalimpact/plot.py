@@ -20,8 +20,6 @@ from typing import Any, Union
 import altair as alt
 import numpy as np
 import pandas as pd
-import tensorflow_probability as tfp
-import matplotlib as mpl
 
 
 def _draw_matplotlib_plot(plot_df, **plot_params):
@@ -103,11 +101,12 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
     axes0_legend_label_observed = plot_params.get("axes0_legend_label", "Observed")
     axes1_legend_label = plot_params.get("axes1_legend_label", "Pointwise")
     axes2_legend_label = plot_params.get("axes2_legend_label", "Cumulative")
+    y_formatter_unit = plot_params.get("y_formatter_unit", "dollar")
     # Define y-axis formatter based on y_formatter_param
     if y_formatter_param == 'millions':
-        formatter = lambda x, pos: f'{x * 1e-6:.1f}M'
+        formatter = lambda x, pos: f'{x * 1e-6:.1f}{y_formatter_unit}'
     elif y_formatter_param == 'thousands':
-        formatter = lambda x, pos: f'{x * 1e-3:.1f}K'
+        formatter = lambda x, pos: f'{x * 1e-3:.1f}{y_formatter_unit}'
     elif callable(y_formatter_param):
         formatter = y_formatter_param
     else:
@@ -328,38 +327,26 @@ def plot(ci_model, **kwargs) -> Union[alt.Chart, Any]:
 
 
 def _create_plot_df(series: pd.DataFrame, alpha: float = 0.05) -> pd.DataFrame:
-    """Creates dataframe for use in plotting impact inferences.
+    """Creates a dataframe for plotting impact inferences.
 
-    This function creates the data to be used in plotting the impact inferences.
-    The plot layers lines for the observed data and predicted values along with
-    uncertainty bands and then facets these depending on the scale (original,
-    pointwise effect, or cumulative effect). The dataframe therefore has columns
-    "time", "value", "lower", "upper", "scale", "stat" (observed/mean/median,
-    if "median" was a requested aggregation). If "std" was a requested
-    aggregation, the dataframe also contains "band_method" indicating whether the
-    interval formed by "lower" and "upper" is calculated based on quantiles or
-    a normal approximation using the predicted value +/- z_alpha/2 * std. The
-    plot also includes horizontal zero lines for the pointwise and cumulative
-    effect panels, so the dataframe has columns for these values too.
+    This function generates data for visualizing impact inferences by plotting observed and predicted values with uncertainty bands, and faceting by scale.
+
 
     Args:
-      series: pd.DataFrame as output by sts_mod.evaluate(). Should be a time
-        series containing observed and predicted outcome, as well as absolute and
-        cumulative impact estimates.
-      alpha: float determining the confidence level for std-based uncertainty
-        intervals.
+        series (pd.DataFrame): Output from sts_mod.evaluate(), containing observed and predicted outcomes, as well as absolute and cumulative impact estimates.
+        alpha (float): Confidence level for standard deviation-based uncertainty intervals.
 
     Returns:
-      pd.DataFrame indexed by time for creating plots. The `value` column is used
-        to draw lines, while `upper` and `lower` denote the corresponding
-        uncertainty bounds. The `scale` column denotes whether `value` is on the
-        original, pointwise (absolute effect), or cumulative scale. The `stat`
-        column denotes whether the quantity in `value` refers to the observed
-        outcome or the posterior mean (or posterior median if "median" is
-        in "aggregations"]). Both `scale` and `stat` have corresponding columns
-        `scale_prett` and `stat_pretty` for making nice plot labels. There is also
-        a `zero` column to draw a horizontal reference line for the absolute and
-        cumulative effect plots.
+        DataFrame indexed by time for plotting.
+        Columns:
+            value (float): Values to plot as lines.
+            upper (float): Upper uncertainty bounds.
+            lower (float): Lower uncertainty bounds.
+            scale (str): Scale of `value` ('original', 'pointwise', 'cumulative').
+            stat (str): Statistic of `value` ('observed', 'posterior_mean', 'posterior_median').
+            scale_prett (str): Formatted scale label for plots.
+            stat_pretty (str): Formatted statistic label for plots.
+            zero (float): Reference line for absolute and cumulative effect plots.
     """
     series["time"] = series.index
 
@@ -407,192 +394,237 @@ def _create_plot_df(series: pd.DataFrame, alpha: float = 0.05) -> pd.DataFrame:
     return plot_df
 
 
+import pandas as pd
+import tensorflow_probability as tfp
+
+
 def _create_plot_component_df(series: pd.DataFrame,
                               component: str,
                               alpha: float = 0.05) -> pd.DataFrame:
-    """Creates plot component dataframes.
+    """
+    Generates a dataframe for specific plot components based on impact estimates.
 
-    This function takes the impact estimate time series and creates a long-form
-    dataframe that can be used to plot lines or uncertainty bands for estimates
-    on the original data scale, pointwise (absolute) effects, and cumulative
-    effects. The dataframe is indexed by time and has columns denoting the value
-    to be plotted on the y-axis, the scale that that value is on (original,
-    absolute, cumulative), and the statistic that the value corresponds to (e.g.
-    the upper or lower bound, the observed data, the posterior mean or median).
+    This function transforms the impact estimate time series into a long-form dataframe
+    suitable for plotting lines or uncertainty bands on different scales: original,
+    absolute (pointwise), or cumulative. Depending on the `component` parameter, it
+    structures the dataframe to include necessary statistics or uncertainty bounds.
+
+    Columns:
+        time (datetime): Time index.
+        value (float): Y-axis values to be plotted.
+        scale (str): Scale of the value ('original', 'absolute', 'cumulative').
+        stat (str, optional): Type of statistic ('observed', 'mean', 'median') for "lines" component.
+        upper (float, optional): Upper bound of uncertainty interval for "bands" or "std" components.
+        lower (float, optional): Lower bound of uncertainty interval for "bands" or "std" components.
+        band_method (str, optional): Method used to calculate uncertainty bands ('quantiles', 'std').
 
     Args:
-      series: dataframe containing impact estimates.
-      component: string for which component dataframe ("lines", "bands", "std") to
-        create. Note: "bands" denotes the standard quantile-based uncertainty
-        bands, while "std" denotes standard deviation-based bands.
-      alpha: float determining the confidence level for std-based uncertainty
-        intervals.
+        series (pd.DataFrame): Dataframe containing impact estimates, typically output from sts_mod.evaluate().
+        component (str): Type of plot component to create ("lines", "bands", "std").
+        alpha (float, optional): Significance level for confidence intervals. Defaults to 0.05.
 
     Returns:
-      pd.DataFrame indexed by time, with the columns `value`, `scale` (whether
-        `value` is on the original, pointwise (absolute effect), or cumulative
-        scale). If `component` is "lines", then the dataframe also has columns for
-        `stat`, the quantity to be plotted a a line (observed, posterior mean, or
-        posterior median [only if "median" is in "aggregations"]). If `component`
-        is "bands" or "std", then there are columns `upper` and `lower` denoting
-        the bounds of the uncertainty intervals. In this case, there is also
-        a column indicating which of "bands" or "std" was used for creating the
-        upper/lower bounds.
+        pd.DataFrame: Transformed dataframe indexed by time with columns tailored to the specified component.
+
+    Raises:
+        ValueError: If `component` is not one of 'lines', 'bands', or 'std'.
     """
 
-    if all([x not in component for x in ["lines", "bands", "std"]]):
-        raise ValueError("`component` must be one of 'lines', 'bands', or 'std'."
-                         "Got %s." % component)
+    valid_components = {"lines", "bands", "std"}
+    if component not in valid_components:
+        raise ValueError(f"`component` must be one of {valid_components}. Got '{component}'.")
 
-    # Pull out only the columns we need from `series`.
-    col_stubs = [
-        "time", "pre_period_start", "pre_period_end", "post_period_start",
-        "post_period_end"
+    # Define the base columns required for all components
+    base_columns = [
+        "time", "pre_period_start", "pre_period_end",
+        "post_period_start", "post_period_end"
     ]
+
+    # Extend columns based on the component type
     if component == "lines":
-        col_stubs.extend(["mean", "median", "observed"])
+        required_columns = base_columns + ["mean", "median", "observed"]
     elif component == "bands":
-        col_stubs.extend(["lower", "upper"])
+        required_columns = base_columns + ["lower", "upper"]
     else:  # component == "std"
-        col_stubs.extend(["mean", "std"])
-    cols_to_extract = [
-        col for col in series.columns if any(x in col for x in col_stubs)
-    ]
+        required_columns = base_columns + ["mean", "std"]
 
-    # Keep the necessary columns and reshape so that `scale` and `stat` are long.
-    # To do this, we collapse all of the existing columns into a single column
-    # that we then split into two columns, `scale` and `stat`.
-    sub_df = series[cols_to_extract].melt(
-        id_vars=[
-            "time", "pre_period_start", "pre_period_end", "post_period_start",
-            "post_period_end"
-        ],
+    # Extract relevant columns from the series
+    extracted_columns = [col for col in series.columns if any(stub in col for stub in required_columns)]
+    filtered_df = series[extracted_columns]
+
+    # Melt the dataframe to long format for easier manipulation
+    melted_df = filtered_df.melt(
+        id_vars=base_columns,
         var_name="scale_stat",
-        value_name="value")
+        value_name="value"
+    )
 
-    # `scale` is for whether `value` is on the original scale (scale of the
-    # observed data), the pointwise scale, or the cumulative scale.
-    stats_to_drop = "_upper|_lower|_mean|_median|_std"
-    sub_df["scale"] = sub_df["scale_stat"].str.replace(
-        stats_to_drop, "", regex=True)
-    sub_df.loc[sub_df["scale"].str.contains("observed|posterior"),
-    "scale"] = "original"
+    # Extract 'scale' by removing statistical suffixes
+    statistical_suffixes = "_upper|_lower|_mean|_median|_std"
+    melted_df["scale"] = melted_df["scale_stat"].str.replace(statistical_suffixes, "", regex=True)
 
-    # `stat` is for whether `value` represents the observed data or the mean or
-    # median estimates.
-    sub_df["stat"] = sub_df["scale_stat"].str.replace(
-        "posterior_|point_effects_|cumulative_effects_", "", regex=True)
-    sub_df.drop(columns=["scale_stat"], inplace=True)
+    # Assign 'original' scale to observed or posterior statistics
+    original_scale_keywords = "observed|posterior"
+    melted_df.loc[melted_df["scale"].str.contains(original_scale_keywords, regex=True), "scale"] = "original"
 
-    # For bands and std, reshape the data again so that "upper" and "lower" (for
-    # bands) and "mean" and "std" (for std) are wide.
-    # columns.
-    if (component == "bands") | (component == "std"):
-        sub_df = sub_df.pivot_table(
-            index=[
-                "time", "scale", "pre_period_start", "pre_period_end",
-                "post_period_start", "post_period_end"
-            ],
+    # Extract 'stat' by removing scale prefixes
+    scale_prefixes = "posterior_|point_effects_|cumulative_effects_"
+    melted_df["stat"] = melted_df["scale_stat"].str.replace(scale_prefixes, "", regex=True)
+
+    # Drop the intermediate 'scale_stat' column
+    melted_df.drop(columns=["scale_stat"], inplace=True)
+
+    # Reshape for 'bands' and 'std' components to have separate 'upper' and 'lower' columns
+    if component in {"bands", "std"}:
+        pivot_columns = [
+            "time", "scale", "pre_period_start", "pre_period_end",
+            "post_period_start", "post_period_end"
+        ]
+        pivoted_df = melted_df.pivot_table(
+            index=pivot_columns,
             columns="stat",
-            values="value").reset_index()
-        if component == "bands":
-            sub_df["band_method"] = "quantile"
-        else:
-            sub_df["band_method"] = "std"
+            values="value"
+        ).reset_index()
 
-    # For std, use the posterior mean and std to create lower and upper bounds.
-    if component == "std":
-        z_val = tfp.distributions.Normal(
-            loc=0., scale=1.).quantile(1.0 - alpha / 2.0).numpy()
-        sub_df["lower"] = sub_df["mean"] - z_val * sub_df["std"]
-        sub_df["upper"] = sub_df["mean"] + z_val * sub_df["std"]
-        sub_df.drop(columns={"mean", "std"}, inplace=True)
+        # Assign the band calculation method based on the component
+        pivoted_df["band_method"] = "quantiles" if component == "bands" else "std"
 
-    return sub_df
+        # For 'std' component, calculate the confidence intervals using the standard deviation
+        if component == "std":
+            z_score = tfp.distributions.Normal(0, 1).quantile(1 - alpha / 2).numpy()
+            pivoted_df["lower"] = pivoted_df["mean"] - z_score * pivoted_df["std"]
+            pivoted_df["upper"] = pivoted_df["mean"] + z_score * pivoted_df["std"]
+            pivoted_df.drop(columns=["mean", "std"], inplace=True)
+
+        filtered_df = pivoted_df
+    else:
+        filtered_df = melted_df
+
+    return filtered_df
 
 
-def _create_base_layers(plot_df: pd.DataFrame, **kwargs):
-    """Create base plot layers.
+def _create_base_layers(plot_df: pd.DataFrame, **kwargs) -> dict:
+    """
+    Create base plot layers for impact inference visualizations.
 
-    This helper function is used by both _draw_static_plot() and
-    _draw_interactive_plot() to draw the four base plot layers: lines, uncertainty
-    bands, and horizontal/vertical rules for zero and the treatment start,
-    respectively.
+    This helper function generates the foundational layers for both static and interactive plots, including:
+    - Lines representing the data values.
+    - Uncertainty bands around the lines.
+    - Horizontal reference line at zero.
+    - Vertical reference lines indicating the start and end of pre- and post-treatment periods.
 
     Args:
-      plot_df: dataframe to use for plotting.
-      **kwargs: Optional plot parameters. chart_width - integer for chart width in
-        pixels. Default = 600. chart_height - integer for chart height in pixels.
-        Default = 200. axis_title_font_size - integer for axis title font size.
-        Default = 18. axis_label_font_size - integer for axis title font size.
-        Default = 16. strip_title_font_size - integer for facet label font size.
-        Default = 20.
+        plot_df (pd.DataFrame): Dataframe containing the data to plot, including time indices and period boundaries.
+        **kwargs: Optional plot parameters.
+            - chart_width (int): Width of the chart in pixels. Default is 600.
+            - chart_height (int): Height of the chart in pixels. Default is 200.
+            - axis_title_font_size (int): Font size for axis titles. Default is 18.
+            - axis_label_font_size (int): Font size for axis labels. Default is 16.
+            - strip_title_font_size (int): Font size for facet labels. Default is 20.
 
     Returns:
-      Dictionary containing the four base plot layers: lines, bands, and vertical
-        and horizontal lines. NOTE that the lines, bands, and horizontal line are
-        alt.Chart objects, while the vertical lines, keyed by "vlines", are
-        a subdictionary of alt.Chart objects. This subdictionary is keyed by the
-        date at which the vertical line is to be drawn and the values are the
-        corresponding alt.Chart objects for those vertical lines.
+        dict: A dictionary containing the base plot layers:
+            - "lines" (alt.Chart): Line chart of the data values.
+            - "band" (alt.Chart): Area chart representing uncertainty bands.
+            - "hline" (alt.Chart): Horizontal rule at zero.
+            - "vlines" (dict): Dictionary of vertical rules marking period boundaries, keyed by period identifiers.
+
+    Raises:
+        KeyError: If required period boundary columns are missing in `plot_df`.
     """
 
-    # Base line layer.
-    base_lines = alt.Chart(plot_df).mark_line().encode(
-        x=alt.X("time", title="Time"),
-        y=alt.Y("value:Q", scale=alt.Scale(zero=False), title="")).properties(
-        width=kwargs["chart_width"], height=kwargs["chart_height"])
+    # Define default plotting parameters
+    chart_width = kwargs.get("chart_width", 600)
+    chart_height = kwargs.get("chart_height", 200)
+    axis_title_font_size = kwargs.get("axis_title_font_size", 18)
+    axis_label_font_size = kwargs.get("axis_label_font_size", 16)
+    strip_title_font_size = kwargs.get("strip_title_font_size", 20)
 
-    # Base band layer.
-    base_band = alt.Chart(plot_df).mark_area(opacity=0.3).encode(
-        x=alt.X("time", title="Time"), y="upper:Q", y2="lower:Q").properties(
-        width=kwargs["chart_width"], height=kwargs["chart_height"])
-
-    # Add horizontal line at zero.
-    base_hline = alt.Chart(plot_df).mark_rule().encode(y="zero")
-
-    # Add vertical lines at the edges of the pre-period and post-period whenever
-    # there is something to demarcate.
-    base_vlines = {}
-    # Since pre_period_end and post_period_start are columns in plot_df, we can
-    # just take the values in the first row in those columns.
-    pre_period_start = plot_df["pre_period_start"][0]
-    pre_period_end = plot_df["pre_period_end"][0]
-    post_period_start = plot_df["post_period_start"][0]
-    post_period_end = plot_df["post_period_end"][0]
-
-    # Only draw a line at the start of the pre-period if there are points before
-    # it.
-    if any(plot_df["time"] < pre_period_start):
-        base_vlines["pre_period_start"] = alt.Chart(plot_df).mark_rule(
-            strokeDash=[5, 5]).encode(
-            x=alt.X("pre_period_start"), color=alt.value("grey"))
-    # Only draw a line at the end of the pre-period if there are points between
-    # it and the start of the post-period.
-    if any((plot_df["time"] > pre_period_end)
-           & (plot_df["time"] < post_period_start)):
-        base_vlines["pre_period_end"] = alt.Chart(plot_df).mark_rule(
-            strokeDash=[5, 5]).encode(
-            x=alt.X("pre_period_end"), color=alt.value("grey"))
-
-    # Always draw when the post-period starts.
-    base_vlines["post_period_start"] = alt.Chart(plot_df).mark_rule(
-        strokeDash=[5, 5]).encode(
-        x=alt.X("post_period_start"), color=alt.value("grey"))
-
-    # Only draw line at the end of the post-period if there are points after it.
-    if any(plot_df["time"] > post_period_end):
-        base_vlines["post_period_end"] = alt.Chart(plot_df).mark_rule(
-            strokeDash=[5, 5]).encode(
-            x=alt.X("post_period_end"), color=alt.value("grey"))
-
-    # Return the base plot components.
-    return {
-        "lines": base_lines,
-        "band": base_band,
-        "hline": base_hline,
-        "vlines": base_vlines
+    # Validate required columns in plot_df
+    required_columns = {
+        "pre_period_start", "pre_period_end",
+        "post_period_start", "post_period_end"
     }
+    missing_columns = required_columns - set(plot_df.columns)
+    if missing_columns:
+        raise KeyError(f"The following required columns are missing in plot_df: {missing_columns}")
+
+    # Extract period boundaries from the first row
+    periods = {
+        "pre_period_start": plot_df.at[0, "pre_period_start"],
+        "pre_period_end": plot_df.at[0, "pre_period_end"],
+        "post_period_start": plot_df.at[0, "post_period_start"],
+        "post_period_end": plot_df.at[0, "post_period_end"],
+    }
+
+    # Create the base line layer for the data values
+    base_lines = alt.Chart(plot_df).mark_line().encode(
+        x=alt.X("time:T", title="Time"),
+        y=alt.Y("value:Q", scale=alt.Scale(zero=False), title="")
+    ).properties(
+        width=chart_width,
+        height=chart_height
+    )
+
+    # Create the uncertainty band layer
+    uncertainty_band = alt.Chart(plot_df).mark_area(opacity=0.3).encode(
+        x=alt.X("time:T", title="Time"),
+        y="upper:Q",
+        y2="lower:Q"
+    ).properties(
+        width=chart_width,
+        height=chart_height
+    )
+
+    # Create a horizontal reference line at zero
+    horizontal_zero = alt.Chart(plot_df).mark_rule(color="red").encode(
+        y=alt.Y("zero:Q")
+    )
+
+    # Initialize dictionary to hold vertical reference lines
+    vertical_lines = {}
+
+    # Define helper function to add a vertical line if condition is met
+    def add_vline(key, condition, x_value):
+        if condition:
+            vertical_lines[key] = alt.Chart(plot_df).mark_rule(
+                strokeDash=[5, 5],
+                color="grey"
+            ).encode(
+                x=alt.X(x_value + ":T")
+            )
+
+    # Add vertical lines based on period boundaries
+    add_vline(
+        "pre_period_start",
+        (plot_df["time"] < periods["pre_period_start"]).any(),
+        "pre_period_start"
+    )
+    add_vline(
+        "pre_period_end",
+        ((plot_df["time"] > periods["pre_period_end"]) & (plot_df["time"] < periods["post_period_start"])).any(),
+        "pre_period_end"
+    )
+    add_vline(
+        "post_period_start",
+        True,  # Always draw the start of the post-period
+        "post_period_start"
+    )
+    add_vline(
+        "post_period_end",
+        (plot_df["time"] > periods["post_period_end"]).any(),
+        "post_period_end"
+    )
+
+    # Compile all base layers into a dictionary
+    base_layers = {
+        "lines": base_lines,
+        "band": uncertainty_band,
+        "hline": horizontal_zero,
+        "vlines": vertical_lines
+    }
+
+    return base_layers
 
 
 def _draw_classic_plot(plot_df: pd.DataFrame, **kwargs) -> alt.Chart:
