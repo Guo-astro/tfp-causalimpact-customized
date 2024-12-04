@@ -149,7 +149,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
 
     # Set the main title if provided
     if plot_title:
-        fig.suptitle(plot_title, fontsize=title_font_size, y=1.02)
+        fig.suptitle(plot_title, fontsize=title_font_size)
 
     # Apply grid and y-axis formatting to all subplots
     for ax in axes:
