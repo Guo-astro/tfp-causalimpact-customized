@@ -239,6 +239,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     for ax in axes:
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper left', bbox_to_anchor=(1, 1), fontsize='small', frameon=False)
+    fig.align_ylabels(axes)
     return fig
 
 
