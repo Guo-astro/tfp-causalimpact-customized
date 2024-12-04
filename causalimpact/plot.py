@@ -19,16 +19,9 @@ from typing import Any, Union
 
 import altair as alt
 import numpy as np
-import pandas as pd
-
-import pandas as pd
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
 import japanize_matplotlib
 
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 from matplotlib.ticker import FuncFormatter
 import pandas as pd
 
@@ -80,8 +73,6 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     fig : matplotlib.figure.Figure
         The resulting Matplotlib figure object.
     """
-    # Set the default font to support Japanese characters
-    mpl.rcParams['font.family'] = 'Noto Sans JP'
 
     def add_vertical_period_markers(ax, df):
         """
@@ -140,7 +131,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     elif y_formatter_option == 'thousands':
         y_formatter = lambda x, pos: f'{x * 1e-3:.1f}{y_formatter_unit}'
     elif callable(y_formatter_option):
-        y_formatter = y_formatter_option
+        legend_labelsy_formatter = y_formatter_option
     else:
         # Default formatter without scaling
         y_formatter = lambda x, pos: f'{x}'
@@ -151,7 +142,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         ncols=1,
         figsize=(fig_width_in, fig_height_in),
         sharex=True,
-        constrained_layout=True
+        layout='constrained'
     )
 
     # Set the main title if provided
@@ -165,7 +156,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
 
     # Set y-axis labels for each subplot
     for ax, ylabel in zip(axes, y_axis_labels):
-        ax.set_ylabel(ylabel, fontsize=axis_label_font_size, fontweight="bold")
+        ax.set_ylabel(ylabel, fontsize=axis_label_font_size, fontweight="bold", labelpad=10)
 
     # Add vertical period markers to each subplot
     for ax in axes:
@@ -246,19 +237,6 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     for ax in axes:
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper left', bbox_to_anchor=(1, 1), fontsize='small', frameon=False)
-
-    # Alternatively, use fig.legend to place a single legend for all subplots
-    # Uncomment the following lines if you prefer a single legend
-    """
-    handles = []
-    labels = []
-    for ax in axes:
-        h, l = ax.get_legend_handles_labels()
-        handles.extend(h)
-        labels.extend(l)
-    fig.legend(handles, labels, loc='upper center', ncol=4, fontsize='small', frameon=False)
-    """
-
     return fig
 
 
