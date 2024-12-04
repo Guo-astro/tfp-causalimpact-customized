@@ -99,7 +99,10 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
     title_font_size = plot_params.get("title_font_size", 12)
     axis_title_font_size = plot_params.get("axis_title_font_size", 10)
     y_formatter_param = plot_params.get("y_formatter", "millions")
-
+    axes0_legend_label_mean = plot_params.get("axes0_legend_label", "Mean")
+    axes0_legend_label_observed = plot_params.get("axes0_legend_label", "Observed")
+    axes1_legend_label = plot_params.get("axes1_legend_label", "Pointwise")
+    axes2_legend_label = plot_params.get("axes2_legend_label", "Cumulative")
     # Define y-axis formatter based on y_formatter_param
     if y_formatter_param == 'millions':
         formatter = lambda x, pos: f'{x * 1e-6:.1f}M'
@@ -161,10 +164,10 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
         (plot_df["scale"] == "original") & (plot_df["stat"] == "mean")
         ]
     axes[0].plot(
-        predicted_series["time"], predicted_series["value"], label="Mean"
+        predicted_series["time"], predicted_series["value"], label=axes0_legend_label_mean
     )
     axes[0].plot(
-        original_series["time"], original_series["value"], label="Observed"
+        original_series["time"], original_series["value"], label=axes0_legend_label_observed
     )
     axes[0].fill_between(
         original_series["time"],
@@ -185,7 +188,7 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
         (plot_df["scale"] == "point_effects") & (plot_df["stat"] == "mean")
         ]
     axes[1].plot(
-        pointwise_series["time"], pointwise_series["value"], label="Pointwise"
+        pointwise_series["time"], pointwise_series["value"], label=axes1_legend_label
     )
     axes[1].fill_between(
         pointwise_series["time"],
@@ -208,7 +211,7 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
         (plot_df["scale"] == "cumulative_effects") & (plot_df["stat"] == "mean")
         ]
     axes[2].plot(
-        cumulative_series["time"], cumulative_series["value"], label="Cumulative"
+        cumulative_series["time"], cumulative_series["value"], label=axes2_legend_label
     )
     axes[2].fill_between(
         cumulative_series["time"],
@@ -264,15 +267,25 @@ def plot(ci_model, **kwargs) -> Union[alt.Chart, Any]:
     # Process kwargs.
     plot_params = {
         "static_plot": True,
-        "backend": "altair",
+        "backend": "matplotlib",
         "alpha": 0.05,
         "show_median": False,
         "use_std_intervals": False,
         "chart_width": 600,
         "chart_height": 200,
-        "axis_title_font_size": 18,
         "axis_label_font_size": 16,
-        "strip_title_font_size": 20
+        "strip_title_font_size": 20,
+        "xlabel": "Date",
+        "ylabels": ["Observed", "Pointwise Effect", "Cumulative Effect"],
+        "title": "Interrupted Time Series Analysis Over Time",
+        "title_font_size": 16,
+        "axis_title_font_size": 12,
+        "y_formatter": "millions",
+        "axes2_legend_label": "Cumulative",
+        "axes1_legend_label": "Pointwise",
+        "axes0_legend_label_mean": "Mean",
+        "axes0_legend_label_observed": "Observed",
+
     }
     if kwargs:
         for k, v in plot_params.items():
