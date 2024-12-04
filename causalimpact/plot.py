@@ -27,12 +27,17 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 import japanize_matplotlib
 
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib.ticker import FuncFormatter
+import pandas as pd
+
 
 def _draw_matplotlib_plot(data_frame, **plot_options):
     """
     Create a customized Matplotlib plot with configurable labels, titles, and y-axis formatting.
 
-    Parameters:
+    Parameters
     ----------
     data_frame : pd.DataFrame
         The DataFrame containing the data to be plotted. Expected to include columns:
@@ -70,7 +75,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
                   Default is "Cumulative".
         - ... (additional plot parameters can be added as needed)
 
-    Returns:
+    Returns
     -------
     fig : matplotlib.figure.Figure
         The resulting Matplotlib figure object.
@@ -82,7 +87,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         """
         Add vertical dashed lines to mark pre-period and post-period intervals.
 
-        Parameters:
+        Parameters
         ----------
         ax : matplotlib.axes.Axes
             The axes on which to draw the vertical lines.
@@ -236,8 +241,23 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         frameon=False
     )
 
-    # Adjust the layout to make space for the legends outside the plot area
-    plt.subplots_adjust(right=0.8)
+    # Adjust legend placement without using subplots_adjust
+    # Move legends inside the plotting area to avoid overlap
+    for ax in axes:
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper left', bbox_to_anchor=(1, 1), fontsize='small', frameon=False)
+
+    # Alternatively, use fig.legend to place a single legend for all subplots
+    # Uncomment the following lines if you prefer a single legend
+    """
+    handles = []
+    labels = []
+    for ax in axes:
+        h, l = ax.get_legend_handles_labels()
+        handles.extend(h)
+        labels.extend(l)
+    fig.legend(handles, labels, loc='upper center', ncol=4, fontsize='small', frameon=False)
+    """
 
     return fig
 
