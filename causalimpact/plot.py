@@ -24,295 +24,59 @@ import tensorflow_probability as tfp
 import matplotlib as mpl
 
 
-def _draw_plotly_plot(plot_df, **plot_params):
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-    """Make interactive Plotly plot."""
-    # Extract plot parameters with defaults
-    chart_width = plot_params.get("chart_width", 800)
-    chart_height = plot_params.get("chart_height", 600)
-    axis_title_font_size = plot_params.get("axis_title_font_size", 14)
-    tick_font_size = plot_params.get("tick_font_size", 12)
-    legend_font_size = plot_params.get("legend_font_size", 12)
-    title_font_size = plot_params.get("title_font_size", 16)
-
-    # Create subplots: 3 rows, 1 column
-    fig = make_subplots(
-        rows=3, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.05,
-        subplot_titles=(
-            "Original vs Predicted",
-            "Pointwise Effects",
-            "Cumulative Effects"
-        )
-    )
-
-    # Helper function to add vertical lines
-    def add_vertical_lines(fig, pre_start, pre_end, post_start, post_end, row):
-        shapes = []
-        # Add lines conditionally
-        if plot_df["time"].min() < pre_start:
-            shapes.append(dict(
-                type="line",
-                x0=pre_start, y0=0, x1=pre_start, y1=1,
-                xref='x', yref=f'y{row}',
-                line=dict(color="grey", dash="dash")
-            ))
-        if plot_df["time"].min() < pre_end and plot_df["time"].max() > pre_end and pre_end < post_start:
-            shapes.append(dict(
-                type="line",
-                x0=pre_end, y0=0, x1=pre_end, y1=1,
-                xref='x', yref=f'y{row}',
-                line=dict(color="grey", dash="dash")
-            ))
-        shapes.append(dict(
-            type="line",
-            x0=post_start, y0=0, x1=post_start, y1=1,
-            xref='x', yref=f'y{row}',
-            line=dict(color="grey", dash="dash")
-        ))
-        if plot_df["time"].max() > post_end:
-            shapes.append(dict(
-                type="line",
-                x0=post_end, y0=0, x1=post_end, y1=1,
-                xref='x', yref=f'y{row}',
-                line=dict(color="grey", dash="dash")
-            ))
-        for shape in shapes:
-            fig.add_shape(shape)
-
-    # Extract period boundaries
-    pre_period_start = plot_df["pre_period_start"].iloc[0]
-    pre_period_end = plot_df["pre_period_end"].iloc[0]
-    post_period_start = plot_df["post_period_start"].iloc[0]
-    post_period_end = plot_df["post_period_end"].iloc[0]
-
-    # Add vertical lines to each subplot
-    add_vertical_lines(fig, pre_period_start, pre_period_end, post_period_start, post_period_end, row=1)
-    add_vertical_lines(fig, pre_period_start, pre_period_end, post_period_start, post_period_end, row=2)
-    add_vertical_lines(fig, pre_period_start, pre_period_end, post_period_start, post_period_end, row=3)
-
-    # Plot Original and Predicted in the first subplot
-    original_series = plot_df[(plot_df["scale"] == "original") & (plot_df["stat"] == "observed")]
-    predicted_series = plot_df[(plot_df["scale"] == "original") & (plot_df["stat"] == "mean")]
-
-    fig.add_trace(
-        go.Scatter(
-            x=predicted_series["time"],
-            y=predicted_series["value"],
-            mode='lines',
-            name='Mean',
-            line=dict(color='blue')
-        ),
-        row=1, col=1
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=original_series["time"],
-            y=original_series["value"],
-            mode='lines',
-            name='Observed',
-            line=dict(color='orange')
-        ),
-        row=1, col=1
-    )
-
-    # Add confidence interval as a shaded area
-    fig.add_trace(
-        go.Scatter(
-            x=predicted_series["time"],
-            y=predicted_series["upper"],
-            mode='lines',
-            line=dict(width=0),
-            showlegend=False
-        ),
-        row=1, col=1
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=predicted_series["time"],
-            y=predicted_series["lower"],
-            mode='lines',
-            fill='tonexty',
-            fillcolor='rgba(0, 0, 255, 0.2)',
-            line=dict(width=0),
-            showlegend=False
-        ),
-        row=1, col=1
-    )
-
-    # Plot Pointwise Effects in the second subplot
-    pointwise_series = plot_df[(plot_df["scale"] == "point_effects") & (plot_df["stat"] == "mean")]
-
-    fig.add_trace(
-        go.Scatter(
-            x=pointwise_series["time"],
-            y=pointwise_series["value"],
-            mode='lines',
-            name='Pointwise',
-            line=dict(color='green')
-        ),
-        row=2, col=1
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=pointwise_series["time"],
-            y=pointwise_series["upper"],
-            mode='lines',
-            line=dict(width=0),
-            showlegend=False
-        ),
-        row=2, col=1
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=pointwise_series["time"],
-            y=pointwise_series["lower"],
-            mode='lines',
-            fill='tonexty',
-            fillcolor='rgba(0, 128, 0, 0.2)',
-            line=dict(width=0),
-            showlegend=False
-        ),
-        row=2, col=1
-    )
-
-    # Add horizontal line at y=0
-    fig.add_trace(
-        go.Scatter(
-            x=[plot_df["time"].min(), plot_df["time"].max()],
-            y=[0, 0],
-            mode='lines',
-            line=dict(color='grey', dash='dash'),
-            showlegend=False
-        ),
-        row=2, col=1
-    )
-
-    # Plot Cumulative Effects in the third subplot
-    cumulative_series = plot_df[(plot_df["scale"] == "cumulative_effects") & (plot_df["stat"] == "mean")]
-
-    fig.add_trace(
-        go.Scatter(
-            x=cumulative_series["time"],
-            y=cumulative_series["value"],
-            mode='lines',
-            name='Cumulative',
-            line=dict(color='red')
-        ),
-        row=3, col=1
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=cumulative_series["time"],
-            y=cumulative_series["upper"],
-            mode='lines',
-            line=dict(width=0),
-            showlegend=False
-        ),
-        row=3, col=1
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=cumulative_series["time"],
-            y=cumulative_series["lower"],
-            mode='lines',
-            fill='tonexty',
-            fillcolor='rgba(255, 0, 0, 0.2)',
-            line=dict(width=0),
-            showlegend=False
-        ),
-        row=3, col=1
-    )
-
-    # Add horizontal line at y=0
-    fig.add_trace(
-        go.Scatter(
-            x=[plot_df["time"].min(), plot_df["time"].max()],
-            y=[0, 0],
-            mode='lines',
-            line=dict(color='grey', dash='dash'),
-            showlegend=False
-        ),
-        row=3, col=1
-    )
-
-    # Update layout for better aesthetics
-    fig.update_layout(
-        width=chart_width,
-        height=chart_height,
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        ),
-        font=dict(
-            size=tick_font_size,
-            family="Arial"
-        ),
-        title_text="Interactive Plot",
-        hovermode='x unified'
-    )
-
-    # Update each subplot's axes
-    for i in range(1, 4):
-        fig.update_xaxes(
-            title_text="Date",
-            title_font=dict(size=axis_title_font_size, family="Arial"),
-            tickfont=dict(size=tick_font_size),
-            row=i, col=1
-        )
-        fig.update_yaxes(
-            title_font=dict(size=axis_title_font_size, family="Arial"),
-            tickfont=dict(size=tick_font_size),
-            row=i, col=1
-        )
-
-    # Adjust subplot titles font size
-    for annotation in fig['layout']['annotations']:
-        annotation['font'] = dict(size=title_font_size, family="Arial")
-
-    return fig
-
-
 def _draw_matplotlib_plot(plot_df, **plot_params):
-    """Make actual matplotlib plot."""
+    """
+    Make an actual matplotlib plot with customizable labels, titles, and y-axis formatting.
+
+    Parameters:
+    - plot_df (pd.DataFrame): The DataFrame containing plot data.
+    - plot_params (dict): A dictionary of plot parameters.
+        - chart_width (int): Width of the chart in pixels.
+        - chart_height (int): Height of the chart in pixels.
+        - xlabel (str, optional): Label for the x-axis. Default is "Time".
+        - ylabels (list of str, optional): Labels for the y-axes of the subplots.
+            Default is ["Observed", "Pointwise Effect", "Cumulative Effect"].
+        - title (str, optional): Title for the entire figure. Default is None.
+        - title_font_size (int, optional): Font size for the title. Default is 12.
+        - axis_title_font_size (int, optional): Font size for axis labels. Default is 10.
+        - y_formatter (str or function, optional): Formatter for y-axis labels.
+            Options:
+                - 'millions': Formats y-axis in millions (e.g., 1M).
+                - 'thousands': Formats y-axis in thousands (e.g., 1K).
+                - callable: A custom formatter function.
+            Default is 'millions'.
+        - ... (other plot parameters)
+
+    Returns:
+    - fig (matplotlib.figure.Figure): The resulting matplotlib figure.
+    """
     try:
         import matplotlib as mpl
         import matplotlib.pyplot as mplt  # pylint: disable=g-import-not-at-top
         import japanize_matplotlib
+        from matplotlib.ticker import FuncFormatter
         mpl.rcParams['font.family'] = 'Noto Sans JP'
     except ImportError as e:
         raise ImportError(
-            "matplotlib is required for using it as plotting backend. Please"
-            " install it first."
+            "matplotlib is required for using it as plotting backend. Please "
+            "install it first."
         ) from e
 
     def _helper_vertical_lines(plot_df, ax):
-        # Vertical line at pre-period end and post-period end
-        pre_period_start = plot_df["pre_period_start"][0]
-        pre_period_end = plot_df["pre_period_end"][0]
-        post_period_start = plot_df["post_period_start"][0]
-        post_period_end = plot_df["post_period_end"][0]
-        # Only draw a line at the start of the pre-period if there are points before
-        # it.
+        """Draw vertical lines for pre-period and post-period markers."""
+        pre_period_start = plot_df["pre_period_start"].iloc[0]
+        pre_period_end = plot_df["pre_period_end"].iloc[0]
+        post_period_start = plot_df["post_period_start"].iloc[0]
+        post_period_end = plot_df["post_period_end"].iloc[0]
+
+        # Only draw a line at the start of the pre-period if there are points before it.
         if any(plot_df["time"] < pre_period_start):
             ax.axvline(pre_period_start, color="grey", linestyle="--")
-        # Only draw a line at the end of the pre-period if there are points between
-        # it and the start of the post-period.
+
+        # Only draw a line at the end of the pre-period if there are points between it and the start of the post-period.
         if any(
-                (plot_df["time"] > pre_period_end)
-                & (plot_df["time"] < post_period_start)
+                (plot_df["time"] > pre_period_end) &
+                (plot_df["time"] < post_period_start)
         ):
             ax.axvline(pre_period_end, color="grey", linestyle="--")
 
@@ -322,11 +86,30 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
         # Only draw line at the end of the post-period if there are points after it.
         if any(plot_df["time"] > post_period_end):
             ax.axvline(post_period_end, color="grey", linestyle="--")
+
         return ax
 
-    # Calculate figure size in inches (assuming plot_params are in pixels)
-    fig_width = plot_params["chart_width"] / 100
-    fig_height = 3 * plot_params["chart_height"] / 100  # For 3 subplots
+    # Extract plot parameters with default values
+    fig_width = plot_params.get("chart_width", 800) / 100  # Default width: 800px
+    fig_height = 3 * plot_params.get("chart_height", 600) / 100  # Default height: 1800px for 3 subplots
+
+    xlabel = plot_params.get("xlabel", "Time")
+    ylabels = plot_params.get("ylabels", ["Observed", "Pointwise Effect", "Cumulative Effect"])
+    title = plot_params.get("title", None)
+    title_font_size = plot_params.get("title_font_size", 12)
+    axis_title_font_size = plot_params.get("axis_title_font_size", 10)
+    y_formatter_param = plot_params.get("y_formatter", "millions")
+
+    # Define y-axis formatter based on y_formatter_param
+    if y_formatter_param == 'millions':
+        formatter = lambda x, pos: f'{x * 1e-6:.1f}M'
+    elif y_formatter_param == 'thousands':
+        formatter = lambda x, pos: f'{x * 1e-3:.1f}K'
+    elif callable(y_formatter_param):
+        formatter = y_formatter_param
+    else:
+        # Default formatter (no scaling)
+        formatter = lambda x, pos: f'{x}'
 
     # Setup base plot with constrained_layout for better spacing
     fig, axes = mplt.subplots(
@@ -337,21 +120,38 @@ def _draw_matplotlib_plot(plot_df, **plot_params):
         constrained_layout=True,  # Use constrained_layout instead of tight_layout
     )
 
+    # Apply the title if provided
+    if title:
+        fig.suptitle(title, fontsize=title_font_size, y=1.02)
+
     # Enable grid for all subplots
     for ax in axes:
         ax.grid()
+        # Apply y-axis formatter
+        ax.yaxis.set_major_formatter(FuncFormatter(formatter))
 
-    # Apply any helper functions if necessary
+    # Set y-axis labels
+    for ax, ylabel in zip(axes, ylabels):
+        ax.set_ylabel(
+            ylabel,
+            fontsize=axis_title_font_size,
+            fontweight="bold"
+        )
+
+    # Apply vertical lines
     axes[0] = _helper_vertical_lines(plot_df, axes[0])
     axes[1] = _helper_vertical_lines(plot_df, axes[1])
     axes[2] = _helper_vertical_lines(plot_df, axes[2])
 
     # Set common x-label for the bottom subplot
     axes[2].set_xlabel(
-        "Time",
-        fontsize=plot_params.get("axis_title_font_size", 6),
+        xlabel,
+        fontsize=plot_params.get("axis_title_font_size", 10),
         fontweight="bold"
     )
+
+    # Rotate x-axis labels to prevent overlap
+    mplt.setp(axes[2].get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
     # Plot the original data with pre-period and post-period marked
     original_series = plot_df.loc[
@@ -506,8 +306,6 @@ def plot(ci_model, **kwargs) -> Union[alt.Chart, Any]:
             plt = _draw_interactive_plot(plot_df, **plot_params)
     elif plot_params["backend"] == "matplotlib":
         plt = _draw_matplotlib_plot(plot_df, **plot_params)
-    elif plot_params["backend"] == "plotly":
-        plt = _draw_plotly_plot(plot_df, **plot_params)
     else:
         raise ValueError(
             "backend must be one of 'altair' or 'matplotlib'. Got"
