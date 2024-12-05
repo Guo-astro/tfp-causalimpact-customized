@@ -131,9 +131,9 @@ REPORT_TMPL = Template(report_text)
 
 
 def summary(
-    ci_model, output_format: str = "summary", alpha: Optional[float] = None
+        ci_model, output_format: str = "summary", alpha: Optional[float] = None
 ):
-  """Get summary of impact results.
+    """Get summary of impact results.
 
   Args:
     ci_model: CausalImpact instance, after calling `.train`.
@@ -147,32 +147,32 @@ def summary(
   Returns:
     Text output of summary results.
   """
-  inferred_alpha = ci_model.summary.alpha.mean()
-  if alpha is not None and alpha != inferred_alpha:
-    raise DeprecationWarning("Supplying an argument to `alpha` is deprecated, "
-                             "since it is inferred from `ci_model`. Set "
-                             f"`alpha=None` to use alpha={inferred_alpha:.2f}, "
-                             f"or retrain the model with alpha={alpha}.")
-  alpha = inferred_alpha
+    inferred_alpha = ci_model.summary.alpha.mean()
+    if alpha is not None and alpha != inferred_alpha:
+        raise DeprecationWarning("Supplying an argument to `alpha` is deprecated, "
+                                 "since it is inferred from `ci_model`. Set "
+                                 f"`alpha=None` to use alpha={inferred_alpha:.2f}, "
+                                 f"or retrain the model with alpha={alpha}.")
+    alpha = inferred_alpha
 
-  if output_format not in ["summary", "report"]:
-    raise ValueError("`format` must be either 'summary' or 'report'. "
-                     "Got %s" % output_format)
+    if output_format not in ["summary", "report"]:
+        raise ValueError("`format` must be either 'summary' or 'report'. "
+                         "Got %s" % output_format)
 
-  if alpha <= 0. or alpha >= 1.:
-    raise ValueError("`alpha` must be in (0, 1). Got %s" % alpha)
+    if alpha <= 0. or alpha >= 1.:
+        raise ValueError("`alpha` must be in (0, 1). Got %s" % alpha)
 
-  p_value = ci_model.summary["p_value"][0]
+    p_value = ci_model.summary["p_value"].iloc[0]
 
-  if output_format == "summary":
-    output = SUMMARY_TMPL.render(
-        summary=ci_model.summary.transpose().to_dict(),
-        alpha=alpha,
-        p_value=p_value)
-  else:
-    output = REPORT_TMPL.render(
-        summary=ci_model.summary.transpose().to_dict(),
-        alpha=alpha,
-        p_value=p_value)
+    if output_format == "summary":
+        output = SUMMARY_TMPL.render(
+            summary=ci_model.summary.transpose().to_dict(),
+            alpha=alpha,
+            p_value=p_value)
+    else:
+        output = REPORT_TMPL.render(
+            summary=ci_model.summary.transpose().to_dict(),
+            alpha=alpha,
+            p_value=p_value)
 
-  return output
+    return output
