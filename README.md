@@ -41,14 +41,14 @@
    uv add tfp_causalimpact_customized
    ```
 2. **Plot options** (Currently only Matplotlib is supported)
-   Important:y_formatter_unit must be a dictionary with the **keys** that are the same as legend_labels **values**.
+   Important:y_formatter_unit must be a dictionary with the **keys** that are the same as legend_labels **y_labels**.
 
 ```python
 plot_options = {
     'chart_width': 1000,
     'chart_height': 200,
-    'xlabel': 'Date',
-    'ylabels': ['Observed', 'Pointwise Effect', 'Cumulative Effect'],
+    'x_label': 'Date',
+    'y_labels': ['Observed1', 'Pointwise Effect1', 'Cumulative Effect1'],
     'title': 'Customized Matplotlib Plot',
     'title_font_size': 16,
     'axis_title_font_size': 14,
@@ -60,9 +60,9 @@ plot_options = {
     },
     'legend_labels': {
         'mean': 'Average',
-        'observed': 'Observed1',
-        'pointwise': 'Pointwise Effect1',
-        'cumulative': 'Cumulative Effect1',
+        'observed': 'Observed',
+        'pointwise': 'Pointwise Effect',
+        'cumulative': 'Cumulative Effect',
         'pre-period-start': 'Start of Pre-Period',
         'pre-period-end': 'End of Pre-Period',
         'post-period-start': 'Start of Post-Period',

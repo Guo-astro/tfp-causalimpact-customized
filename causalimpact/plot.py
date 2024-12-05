@@ -53,7 +53,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         - chart_width (int): Width of the chart in pixels. Default is 800.
         - chart_height (int): Height of the chart in pixels. Default is 600.
         - xlabel (str): Label for the x-axis. Default is "Time".
-        - ylabels (list of str): Labels for the y-axes of the subplots.
+        - y_labels (list of str): Labels for the y-axes of the subplots.
             Default is ["Observed", "Pointwise Effect", "Cumulative Effect"].
         - title (str): Title for the entire figure. Default is None.
         - title_font_size (int): Font size for the title. Default is 14.
@@ -68,7 +68,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         - y_formatter_unit (str, list, or dict): Unit to append after formatted y-axis labels.
             Options:
                 - Single string: Applies to all subplots.
-                - List: Specifies units per subplot in the order of ylabels.
+                - List: Specifies units per subplot in the order of y_labels.
                 - Dict: Specifies units per subplot by name.
             Default is "dollar".
         - legend_labels (dict): Custom labels for plot legends and period markers.
@@ -99,14 +99,14 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
 
     # ----------------------------- Helper Functions -----------------------------
 
-    def process_y_formatter_units(y_formatter_unit_option, subplot_labels):
+    def process_y_formatter_units(y_formatter_unit_options, subplot_labels):
         """
         Process the y_formatter_unit option to create a mapping of subplot labels
         to their respective units.
 
         Parameters
         ----------
-        y_formatter_unit_option : str, list, or dict
+        y_formatter_unit_options : str, list, or dict
             The y_formatter_unit input provided by the user.
         subplot_labels : list of str
             The labels of the subplots.
@@ -116,14 +116,14 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         dict
             A dictionary mapping each subplot label to its formatter unit.
         """
-        if isinstance(y_formatter_unit_option, str):
-            return {label: y_formatter_unit_option for label in subplot_labels}
-        elif isinstance(y_formatter_unit_option, list):
-            if len(y_formatter_unit_option) != len(subplot_labels):
-                raise ValueError("Length of y_formatter_unit list must match number of ylabels.")
-            return dict(zip(subplot_labels, y_formatter_unit_option))
-        elif isinstance(y_formatter_unit_option, dict):
-            return y_formatter_unit_option
+        if isinstance(y_formatter_unit_options, str):
+            return {label: y_formatter_unit_options for label in subplot_labels}
+        elif isinstance(y_formatter_unit_options, list):
+            if len(y_formatter_unit_options) != len(subplot_labels):
+                raise ValueError("Length of y_formatter_unit list must match number of y_labels.")
+            return dict(zip(subplot_labels, y_formatter_unit_options))
+        elif isinstance(y_formatter_unit_options, dict):
+            return y_formatter_unit_options
         else:
             raise TypeError("y_formatter_unit must be a string, list, or dict.")
 
@@ -201,8 +201,8 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     fig_height_in = (chart_height_px * 3) / dpi  # 3 vertically stacked subplots
 
     # Axis and title configurations
-    x_label = plot_options.get("xlabel", "Time")
-    y_labels = plot_options.get("ylabels", ["Observed", "Pointwise Effect", "Cumulative Effect"])
+    x_label = plot_options.get("x_label", "Time")
+    y_labels = plot_options.get("y_labels", ["Observed", "Pointwise Effect", "Cumulative Effect"])
     plot_title = plot_options.get("title", "")
     title_font_size = plot_options.get("title_font_size", 14)
     axis_label_font_size = plot_options.get("axis_title_font_size", 12)
@@ -244,19 +244,19 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
 
     # ----------------------------- Configure Each Subplot -----------------------------
 
-    for ax, ylabel in zip(axes, y_labels):
+    for ax, y_label in zip(axes, y_labels):
         # Enable grid for better readability
         ax.grid(True, linestyle='--', alpha=0.7)
 
         # Determine the unit for the current subplot
-        unit = y_formatter_units.get(ylabel, default_unit)
+        unit = y_formatter_units.get(y_label, default_unit)
 
         # Create and set the y-axis formatter
         formatter = create_y_axis_formatter(y_formatter_option, unit)
         ax.yaxis.set_major_formatter(FuncFormatter(formatter))
 
         # Set y-axis label
-        ax.set_ylabel(ylabel, fontsize=axis_label_font_size,
+        ax.set_ylabel(y_label, fontsize=axis_label_font_size,
                       fontweight="bold", labelpad=10)
 
     # Add vertical period markers to each subplot
@@ -341,7 +341,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     # ----------------------------- Final Adjustments -----------------------------
 
     # Align y-labels across subplots for a cleaner look
-    fig.align_ylabels(axes)
+    fig.align_y_labels(axes)
 
     return fig
 
@@ -385,8 +385,8 @@ def plot(ci_model, **kwargs) -> Union[alt.Chart, Any]:
         "chart_height": 200,
         "axis_label_font_size": 16,
         "strip_title_font_size": 20,
-        "xlabel": "Date",
-        "ylabels": ["Observed", "Pointwise Effect", "Cumulative Effect"],
+        "x_label": "Date",
+        "y_labels": ["Observed", "Pointwise Effect", "Cumulative Effect"],
         "title": "Interrupted Time Series Analysis Over Time",
         "title_font_size": 16,
         "axis_title_font_size": 12,
