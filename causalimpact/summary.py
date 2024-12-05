@@ -18,6 +18,8 @@
 from typing import Optional
 from jinja2 import Template
 
+from causalimpact.causalimpact_lib import CausalImpactAnalysis
+
 summary_text = """
 {% macro CI(alpha) %}{{(((1 - alpha) * 100) | string).rstrip('0').rstrip('.')}}% CI{% endmacro -%}
 {% macro add_remaining_spaces(n) %}{{' ' * (19 -n)}}{% endmacro -%}
@@ -40,8 +42,10 @@ For more details run the command: summary(impact, output_format="report")
 """
 
 report_text = """
-The model was run on data from {{ ci_model.series.index[0].strftime('%Y-%m-%dT%H:%M:%SZ') }} to {{ ci_model.series.index[-1].strftime('%Y-%m-%dT%H:%M:%SZ') }}.
-The post-intervention period started on {{ ci_model.series.post_period_start.iloc[0].strftime('%Y-%m-%dT%H:%M:%SZ') }}.
+<!-- ISO 8601 Formatted Dates and Training Days -->
+The model was run on data from {{ series.index[0].strftime('%Y-%m-%dT%H:%M:%SZ') }} to {{ series.index[-1].strftime('%Y-%m-%dT%H:%M:%SZ') }}.
+The post-intervention period started on {{ series.post_period_start.iloc[0].strftime('%Y-%m-%dT%H:%M:%SZ') }}.
+A total of {{ (series.post_period_start.iloc[0] - series.index[0]).days }} days were used for training the model.
 
 {% set detected_sig = not (summary.average.rel_effect_lower < 0 and summary.average.rel_effect_upper > 0) -%}
 {% set positive_sig = summary.average.rel_effect > 0 -%}
@@ -135,7 +139,7 @@ REPORT_TMPL = Template(report_text)
 
 
 def summary(
-        ci_model, output_format: str = "summary", alpha: Optional[float] = None
+        ci_model: CausalImpactAnalysis, output_format: str = "summary", alpha: Optional[float] = None
 ):
     """Get summary of impact results.
 
@@ -175,6 +179,7 @@ def summary(
             p_value=p_value)
     else:
         output = REPORT_TMPL.render(
+            series=ci_model.series,
             summary=ci_model.summary.transpose().to_dict(),
             alpha=alpha,
             p_value=p_value)
