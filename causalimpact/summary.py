@@ -40,6 +40,9 @@ For more details run the command: summary(impact, output_format="report")
 """
 
 report_text = """
+The model was run on data from {{ ci_model.series.index[0].strftime('%Y-%m-%dT%H:%M:%SZ') }} to {{ ci_model.series.index[-1].strftime('%Y-%m-%dT%H:%M:%SZ') }}.
+The post-intervention period started on {{ ci_model.series.post_period_start.iloc[0].strftime('%Y-%m-%dT%H:%M:%SZ') }}.
+
 {% set detected_sig = not (summary.average.rel_effect_lower < 0 and summary.average.rel_effect_upper > 0) -%}
 {% set positive_sig = summary.average.rel_effect > 0 -%}
 {% macro CI(alpha) %}{{(((1 - alpha) * 100) | string).rstrip('0').rstrip('.')}}%{% endmacro -%}
