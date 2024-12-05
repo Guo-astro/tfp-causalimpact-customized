@@ -25,14 +25,6 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 import pandas as pd
 
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
-import pandas as pd
-
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
-import pandas as pd
-
 
 def _draw_matplotlib_plot(data_frame, **plot_options):
     """
@@ -341,7 +333,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     # ----------------------------- Final Adjustments -----------------------------
 
     # Align y-labels across subplots for a cleaner look
-    fig.align_y_labels(axes)
+    fig.align_ylabels(axes)
 
     return fig
 
