@@ -42,10 +42,53 @@ For more details run the command: summary(impact, output_format="report")
 """
 
 report_text = """
-<!-- ISO 8601 Formatted Dates and Training Days -->
-The model was run on data from {{ series.index[0].strftime('%Y-%m-%dT%H:%M:%SZ') }} to {{ series.index[-1].strftime('%Y-%m-%dT%H:%M:%SZ') }}.
-The post-intervention period started on {{ series.post_period_start.iloc[0].strftime('%Y-%m-%dT%H:%M:%SZ') }}.
-A total of {{ (series.post_period_start.iloc[0] - series.index[0]).days }} days were used for training the model.
+{% macro format_value(item) %}
+    {% if item is none %}
+        no date info
+    {% elif item is number %}
+        {{ item }}
+    {% elif item is string %}
+        {{ item }}
+    {% else %}
+        {% if item.strftime is defined %}
+            {{ item.strftime('%Y-%m-%dT%H:%M:%SZ') }}
+        {% else %}
+            no date info
+        {% endif %}
+    {% endif %}
+{% endmacro %}
+
+{% macro get_index_item(index, position) %}
+    {% if index is not none and index | length > 0 %}
+        {% if position >= 0 %}
+            {% set idx = position %}
+        {% else %}
+            {% set idx = index | length + position %}
+        {% endif %}
+        {% if idx >= 0 and idx < index | length %}
+            {{ index[idx] }}
+        {% else %}
+            none
+        {% endif %}
+    {% else %}
+        none
+    {% endif %}
+{% endmacro %}
+
+{% set start_item = get_index_item(series.index, 0) %}
+{% set end_item = get_index_item(series.index, -1) %}
+{% set post_period_item = series.post_period_start[0] if series.post_period_start is defined and series.post_period_start | length > 0 else none %}
+
+The model was run on data from {{ format_value(start_item) }} to {{ format_value(end_item) }}.
+The post-intervention period started on {{ format_value(post_period_item) }}.
+{% if start_item is not none and post_period_item is not none and (start_item.strftime is defined) and (post_period_item.strftime is defined) %}
+    A total of {{ (post_period_item - start_item).days }} days were used for training the model.
+{% else %}
+    A total of no training days information available.
+{% endif %}
+
+
+
 
 {% set detected_sig = not (summary.average.rel_effect_lower < 0 and summary.average.rel_effect_upper > 0) -%}
 {% set positive_sig = summary.average.rel_effect > 0 -%}

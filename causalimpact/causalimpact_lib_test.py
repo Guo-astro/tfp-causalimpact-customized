@@ -211,7 +211,7 @@ class CausalImpactTest(parameterized.TestCase):
         df.drop(columns=["t"], inplace=True)
         # Explicitly set the frequency to match the input data, which is required.
         df.index.freq = "10s"
-        df.y[[1, 3, 7]] = np.nan  # Set a few pre-period observations to be missing.
+        df.y.iloc[[1, 3, 7]] = np.nan  # Set a few pre-period observations to be missing.
         cls.data = df
         treatment_start_index = 60
         cls.pre_period = (df.index[0], df.index[treatment_start_index - 1])
@@ -390,7 +390,7 @@ class CausalImpactTest(parameterized.TestCase):
 
         trajectory_dict = causalimpact_lib._compute_impact_trajectories(
             posterior_trajectories=posterior_trajectories,
-            observed_ts_full=test_impact_data["observed_ts_full"],
+            y_full=test_impact_data["observed_ts_full"],
             treatment_start=test_impact_data["treatment_start"])
 
         expected_keys = ["predictions", "point_effects", "cumulative_effects"]
@@ -408,7 +408,7 @@ class CausalImpactTest(parameterized.TestCase):
         # test data.
         trajectory_dict = causalimpact_lib._compute_impact_trajectories(
             posterior_trajectories=expected_trajectories["predictions"],
-            observed_ts_full=test_impact_data["observed_ts_full"],
+            y_full=test_impact_data["observed_ts_full"],
             treatment_start=test_impact_data["treatment_start"])
         impact_estimates = causalimpact_lib._compute_impact_estimates(
             posterior_trajectory_summary=test_impact_data["posterior_summary"],
@@ -439,7 +439,7 @@ class CausalImpactTest(parameterized.TestCase):
 
         trajectory_dict = causalimpact_lib._compute_impact_trajectories(
             posterior_trajectories=expected_trajectories["predictions"],
-            observed_ts_full=test_impact_data["observed_ts_full"],
+            y_full=test_impact_data["observed_ts_full"],
             treatment_start=test_impact_data["treatment_start"])
 
         # Calculate impact summary using test data.
