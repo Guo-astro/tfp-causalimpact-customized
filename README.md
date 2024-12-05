@@ -3,7 +3,9 @@
 ## Features
 
 - Rebuilt of [TFP CausalImpact](https://github.com/google/tfp-causalimpact)
+
 ### Improved summary round to 3 digits
+
 ### Matplotlib Japanese Support
 
 - Added support for Japanese fonts and characters in Matplotlib plots.
@@ -37,4 +39,34 @@
 1. **Installation**
    ```bash
    uv add tfp_causalimpact_customized
+   ```
+2. **Plot options** (Currently only Matplotlib is supported)
+   Important:y_formatter_unit must be a dictionary with the **keys** that are the same as legend_labels **values**.
+
+```python
+plot_options = {
+    'chart_width': 1000,
+    'chart_height': 200,
+    'xlabel': 'Date',
+    'ylabels': ['Observed', 'Pointwise Effect', 'Cumulative Effect'],
+    'title': 'Customized Matplotlib Plot',
+    'title_font_size': 16,
+    'axis_title_font_size': 14,
+    'y_formatter': 'millions',
+    'y_formatter_unit': {
+        'Observed1': ' units',
+        'Pointwise Effect1': ' effect',
+        'Cumulative Effect1': ' total'
+    },
+    'legend_labels': {
+        'mean': 'Average',
+        'observed': 'Observed1',
+        'pointwise': 'Pointwise Effect1',
+        'cumulative': 'Cumulative Effect1',
+        'pre-period-start': 'Start of Pre-Period',
+        'pre-period-end': 'End of Pre-Period',
+        'post-period-start': 'Start of Post-Period',
+        'post-period-end': 'End of Post-Period'
+    }
+}
    ```
