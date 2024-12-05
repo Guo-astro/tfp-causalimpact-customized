@@ -9,15 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Helper Functions:**
-    - Introduced `process_y_formatter_units` to handle flexible y-axis formatter units.
-    - Introduced `create_y_axis_formatter` to generate y-axis formatter functions based on user input.
-    - Introduced `add_period_markers` to add vertical period markers to each subplot, reducing code duplication.
+- **Summary Rounding:**
+    - Implemented improved summary rounding to three decimal places for more precise and readable output.
+- **Japanese Font Support:**
+- **Matplotlib Japanese Support:**
+    - Added support for Japanese fonts and characters in Matplotlib plots.
+    - Enhanced compatibility with Japanese data visualization requirements.
+- **Output difference between the actual and predicted sums in the summary report:**
+- **Plotting Enhancements:**
+    - **Helper Functions:**
+        - Introduced `process_y_formatter_units` to handle flexible y-axis formatter units.
+        - Introduced `create_y_axis_formatter` to generate y-axis formatter functions based on user input.
+        - Introduced `add_period_markers` to add vertical period markers to each subplot, reducing code duplication.
 
-- **Documentation Enhancements:**
-    - Expanded docstrings for the main function and all helper functions to provide detailed descriptions of their
-      purposes, parameters, and return values.
-    - Added comprehensive inline comments to demarcate different sections of the code and explain complex logic.
+    - **Documentation Enhancements:**
+        - Expanded docstrings for the main function and all helper functions to provide detailed descriptions of their
+          purposes, parameters, and return values.
+        - Added comprehensive inline comments to demarcate different sections of the code and explain complex logic.
 
 ### Changed
 

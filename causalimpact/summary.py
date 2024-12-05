@@ -62,6 +62,7 @@ period (which can only sometimes be meaningfully interpreted), the
 response variable had an overall value of {{summary.cumulative.actual | round(3)}}.
 {% if detected_sig %}By contrast, had{% else %}Had{% endif %} the intervention not taken place, we would have expected
 a sum of {{summary.cumulative.predicted| round(3)}}. The {{CI(alpha)}} interval of this prediction is {{[summary.cumulative.predicted_lower | round(3), summary.cumulative.predicted_upper | round(3)]|sort}}.
+The difference between the actual and predicted sums is {{ (summary.cumulative.actual - summary.cumulative.predicted) | round(3) }}.
 
 
 The above results are given in terms of absolute numbers. In relative
