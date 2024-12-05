@@ -26,7 +26,6 @@ import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 # pylint: disable=g-import-not-at-top
-from causalimpact.causalimpact_lib import CausalImpactAnalysis
 from causalimpact.causalimpact_lib import DataOptions
 from causalimpact.causalimpact_lib import fit_causalimpact
 from causalimpact.causalimpact_lib import InferenceOptions

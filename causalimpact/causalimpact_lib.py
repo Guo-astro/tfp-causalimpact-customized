@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""TFP-based CausalImpact implementation via fit_causalimpact."""
+
+"""Implementation of CausalImpact using TensorFlow Probability (TFP) via fit_causalimpact."""
 
 import dataclasses
 import logging
@@ -43,18 +44,18 @@ _SeedType = Union[int, Tuple[int, int], TensorLike]
 
 @dataclasses.dataclass
 class CausalImpactPosteriorSamples:
-    """Results for samples of the latents of CausalImpact."""
-    # Shape is [num_samples].
+    """Results for samples of the latent variables in CausalImpact."""
+    # Shape: [N]
     observation_noise_scale: tf.Tensor
-    # Shape is [num_samples].
+    # Shape: [N]
     level_scale: Optional[tf.Tensor]
-    # Shape is [num_samples].
+    # Shape: [N]
     level: Optional[tf.Tensor]
-    # Shape is [num_samples, num_covariates + 1 (for intercept)].
+    # Shape: [N, K+1] where K is the number of covariates
     weights: Optional[tf.Tensor]
-    # Shape is [num_samples, num_seasonal_effects]
+    # Shape: [N, S] where S is the number of seasonal effects
     seasonal_drift_scales: Optional[tf.Tensor]
-    # Shape is [num_samples, num_seasonal_effects]
+    # Shape: [N, S]
     seasonal_levels: Optional[tf.Tensor]
 
 
@@ -62,79 +63,48 @@ class CausalImpactPosteriorSamples:
 class CausalImpactAnalysis:
     """Results of a CausalImpact analysis.
 
-    Holds both the dataframe outputs of `fit_causalimpact`, as well as the full
-    posterior of draws from the structural time series model that was fit. See
-    `build_model_for_gibbs_fitting` in the module
-    `tensorflow_probability.experimental.sts_gibbs.gibbs_sampler` for details of
-    the model parameters.
+    Contains both the DataFrame outputs from `fit_causalimpact` and the full
+    posterior samples from the fitted structural time series (STS) model. Refer to
+    `build_model_for_gibbs_fitting` in
+    `tensorflow_probability.experimental.sts_gibbs.gibbs_sampler` for model parameter details.
 
     Attributes:
-      series: DataFrame describing the posterior of the causal impact of the
-        intervention at each step. This contains an index with the same
-        range as the input data (i.e. not just constrained to
-        [pre-period start, post-period end]) with columns:
+      series (pd.DataFrame): Posterior causal impact per time step. Index matches
+        input data range with columns:
 
-          observed: The observed value.
-          posterior_mean: The mean of the predicted value.
-          posterior_lower: The lower bound of the (equal-tailed) credible interval
-            for the counterfactual forecast of the observed value.
-          posterior_upper: The upper bound of the (equal-tailed) credible interval
-            for the counterfactual forecast of the observed value.
-          point_effects_mean: The posterior mean of the difference between the
-            observed and predicted value.
-          point_effects_lower: The lower bound of the `(1-alpha)`-percentile
-            (equal-tailed) credible interval for the difference between the
-            observed and the predicted value.
-          point_effects_upper: The upper bound of the `(1-alpha)`-percentile
-            (equal-tailed) credible interval for the difference between the
-            observed and the predicted value.
-          cumulative_effects_mean: Starting from the beginning of the post-period,
-            the posterior mean of the cumulative difference between the
-            observed and predicted value.
-          cumulative_effects_lower: The lower bound of the `(1-alpha)`-percentile
-            (equal-tailed) credible interval for the cumulative difference between
-            the observed and the predicted value.
-          cumulative_effects_upper: The upper bound of the `(1-alpha)`-percentile
-            (equal-tailed) credible interval for the cumulative difference between
-            the observed and the predicted value.
+          observed: Observed value :y_t:.
+          posterior_mean: Mean of predicted counterfactual :y_hat_t:.
+          posterior_lower: Lower bound of the :(1 - alpha): credible interval for :y_hat_t:.
+          posterior_upper: Upper bound of the :(1 - alpha): credible interval for :y_hat_t:.
+          point_effects_mean: Posterior mean of effect :delta_t: = :y_t: - :y_hat_t:.
+          point_effects_lower: Lower bound of the :(1 - alpha): credible interval for :delta_t:.
+          point_effects_upper: Upper bound of the :(1 - alpha): credible interval for :delta_t:.
+          cumulative_effects_mean: Posterior mean of cumulative effect :sum(delta_t): post-intervention.
+          cumulative_effects_lower: Lower bound of the :(1 - alpha): credible interval for cumulative effect.
+          cumulative_effects_upper: Upper bound of the :(1 - alpha): credible interval for cumulative effect.
 
         Some values may be NaN.
-      summary: DataFrame that is a compact representation of `series` that
-        summarizes the impact in the post-period. The two rows - labelled
-        'average' and 'cumulative' - are computed from the posterior predictive
-        samples, and for the first nine columns, the `cumulative` will be a
-        constant multiple of the `average`. The columns are:
+      summary (pd.DataFrame): Summary of `series` over the post-period with two rows
+        labeled 'average' and 'cumulative', derived from posterior predictive samples.
+        Columns include:
 
-          actual: The observed value over the post-period.
-          predicted: The predicted value over the post-period.
-          predicted_lower: Lower bound for the `(1-alpha)`-percentile
-            credible interval of the predicted value.
-          predicted_upper: Upper bound for the `(1-alpha)`-percentile
-            (equal-tailed) credible interval of the predicted value.
-          predicted_sd: Standard deviation of the predicted value.
-          abs_effect: The posterior mean of the difference between the
-            observed and predicted value.
-          abs_effect_lower: The lower bound of the `(1-alpha)`-percentile
-            (equal-tailed) credible interval for the difference between the
-            observed and the predicted value.
-          abs_effect_upper: The upper bound of the `(1-alpha)`-percentile
-            (equal-tailed) credible interval for the difference between the
-            observed and the predicted value.
-          abs_effect_sd: Standard deviation of the difference between the
-            aggregation of the actual value and the predicted value.
-          rel_effect: Posterior mean of the relative effect
-            (observed / predicted - 1). This is the same for both average and
-            cumulative.
-          rel_effect_lower: The lower bound of the `(1-alpha)`-percentile
-            (equal-tailed) credible interval of the relative effect.
-          rel_effect_upper: The upper bound of the `(1-alpha)`-percentile
-            (equal-tailed) credible interval of the relative effect.
-          rel_effect_sd: The standard deviation of the relative effect.
-          p_value: One-sided p-value that there was a cumulative effect.
+          actual: Observed values over the post-period.
+          predicted: Predicted values over the post-period.
+          predicted_lower: Lower bound of the :(1 - alpha): credible interval for predictions.
+          predicted_upper: Upper bound of the :(1 - alpha): credible interval for predictions.
+          predicted_sd: Standard deviation of predicted values.
+          abs_effect: Posterior mean of absolute effect :delta_t:.
+          abs_effect_lower: Lower bound of the :(1 - alpha): credible interval for :delta_t:.
+          abs_effect_upper: Upper bound of the :(1 - alpha): credible interval for :delta_t:.
+          abs_effect_sd: Standard deviation of :delta_t:.
+          rel_effect: Posterior mean of relative effect :rho_t: = :y_t: / :y_hat_t: - 1.
+          rel_effect_lower: Lower bound of the :(1 - alpha): credible interval for relative effect.
+          rel_effect_upper: Upper bound of the :(1 - alpha): credible interval for relative effect.
+          rel_effect_sd: Standard deviation of relative effect.
+          p_value: One-sided p-value for cumulative effect.
 
-      posterior_samples: NamedTuple of Tensorlikes containing samples of latent
-        variables. Useful for understanding what the model learned without even
-        considering predictions.
+      posterior_samples (CausalImpactPosteriorSamples): NamedTuple containing samples of latent
+        variables, providing insights into model parameters independent of predictions.
     """
     series: pd.DataFrame
     summary: pd.DataFrame
@@ -146,13 +116,12 @@ class CausalImpactAnalysis:
 
 @dataclasses.dataclass
 class DataOptions:
-    """Options for working with the input data.
+    """Options for preprocessing input data.
 
     Attributes:
-      outcome_column: String giving the name of the outcome column in `data`. If
-        not specified, the first column in `data` is used.
-      standardize_data: If covariates and output should be standardized.
-      dtype: The dtype to use throughout computation.
+      outcome_column (Optional[str]): Name of the outcome variable :y: in `data`. Defaults to the first column if unspecified.
+      standardize_data (bool): Whether to standardize covariates and outcome.
+      dtype (tf.dtypes.DType): Data type for computations.
     """
     outcome_column: Optional[str] = None
     standardize_data: bool = True
@@ -161,20 +130,17 @@ class DataOptions:
 
 @dataclasses.dataclass(frozen=True)
 class Seasons:
-    """Options for modeling a single seasonal effect.
+    """Configuration for a single seasonal component.
 
-    For instance, modeling day of the week.
+    Example: Modeling day-of-week seasonality.
 
     Attributes:
-      num_seasons: Number of seasons.
-      num_steps_per_season: Number of steps in each season. This may be either an
-        int, in which case all seasons have the same length, or a tuple of ints of
-        shape `[num_seasons]`, in which seasons have different length, but remain
-        constant around different cycles, or a tuple of tuples of ints of shape
-        `[num_cycles, num_seasons]`, in which num_steps_per_season for each season
-        also varies in different cycle (e.g., a 4 years cycle with leap day).
-        Using [num_cycles] allows having the timeseries start in the middle of a
-        season.
+      num_seasons (int): Number of distinct seasons :S:.
+      num_steps_per_season (Union[int, Tuple[int], Tuple[Tuple[int]]]):
+        Steps per season :T_S:. Can be:
+          - int: Uniform steps for all seasons.
+          - Tuple[int]: Variable steps per season, constant across cycles.
+          - Tuple[Tuple[int]]: Variable steps per season across multiple cycles (e.g., accounting for leap years).
     """
     num_seasons: int
     num_steps_per_season: Union[int, Tuple[int], Tuple[Tuple[int]]] = 1
@@ -182,22 +148,14 @@ class Seasons:
 
 @dataclasses.dataclass
 class ModelOptions:
-    """Options used for the model that is being fit.
+    """Configuration options for the structural time series model.
 
     Attributes:
-      prior_level_sd: float: Prior standard deviation of the Gaussian random walk
-        of the local level model. Expressed in terms of data standard deviations.
-        Defaults to 0.01, a typical choice for well-behaved and stable datasets
-        with low residual volatility. When in doubt, a safer option is to use 0.1,
-        as validated on synthetic data, although this may sometimes give rise to
-        unrealistically wide prediction intervals.
-      seasons: This supports a list of Seasons, for modeling
-        multiple seasons. For instance, for hourly data, there could be
-        both an hour-of-the-day (num_seasons=24, num_steps_per_season=1), and
-        day-of-the-week effect (num_seasons=7, num_steps_per_season=24) by passing
-        in two SeasonalOptions. This is different from a single SeasonalOption
-        that would model hour-of-the-day-of-the-week effect (num_seasons=7*24,
-        num_steps_per_season=1).
+      prior_level_sd (float): Prior standard deviation :sigma_mu: for the Gaussian random walk of the local level :mu_t:. Defined in units of data standard deviations. Default is 0.01 for stable datasets with low residual volatility; 0.1 may be used for broader intervals.
+      seasons (List[Seasons]): List of seasonal components :S:. For example, for hourly data, include:
+        - Hour-of-day seasonality: :S: = 24, :T_S: = 1.
+        - Day-of-week seasonality: :S: = 7, :T_S: = 24.
+        This allows multiple seasonal effects, unlike a single SeasonalOption which would combine them (e.g., :S: = 168 for 7 days * 24 hours).
     """
     prior_level_sd: float = 0.01
     seasons: List[Seasons] = dataclasses.field(default_factory=list)
@@ -205,12 +163,11 @@ class ModelOptions:
 
 @dataclasses.dataclass
 class InferenceOptions:
-    """Options for how to do inference for the model.
+    """Configuration for model inference.
 
     Attributes:
-      num_results: integer number of posterior samples to draw.
-      num_warmup_steps: integer number of steps to take before starting to collect
-        results. If not set, then 1/9th of num_results will be used.
+      num_results (int): Number of posterior samples :N: to generate.
+      num_warmup_steps (Optional[int]): Number of warmup iterations :W: before sampling. Defaults to :W: = ceil(:N: / 9) if not specified.
     """
     num_results: int = 900
     num_warmup_steps: Optional[int] = None
@@ -232,29 +189,22 @@ def fit_causalimpact(data: pd.DataFrame,
     """Fit a CausalImpact model on provided data.
 
     Args:
-      data: Pandas `DataFrame` containing an outcome time series and optional
-        features time series. If a datetime index is used, it is assumed to be of
-        a fixed period. Similarly, an integer index assumes all points are
-        adjacent (e.g. an index of [2,3,4,6] will assume [4,6] are adjacent for
-        training and prediction.
-      pre_period: Tuple of datetimes, indices or strings (convertible via
-        pd.to_datetime) giving pre-period start/end.
-      post_period: Tuple of datetimes, indices or strings (convertible via
-        pd.to_datetime) giving post-period start/end.
-      alpha: float, used to get confidence level for predictions.
-      seed: PRNG seed; see `tensorflow_probability.random.sanitize_seed` for
-        details.
-      data_options: See DataOptions.
-      model_options: See ModelOptions.
-      inference_options: See InferenceOptions.
-      **kwargs: Only for experimental options. Unsupported keys will raise an
-        exception.
+      data (pd.DataFrame): Outcome time series :y_t: and optional covariates :X_t:. Assumes:
+        - Fixed frequency if indexed by datetime.
+        - Adjacent points if indexed by integers (e.g., [2,3,4,6] treats 4 and 6 as consecutive for training and prediction).
+      pre_period (Tuple[InputDateType, InputDateType]): Start and end of pre-intervention period :t_pre_start:, :t_pre_end:.
+      post_period (Tuple[InputDateType, InputDateType]): Start and end of post-intervention period :t_post_start:, :t_post_end:.
+      alpha (float): Significance level for credible intervals :alpha:.
+      seed (Optional[_SeedType]): Pseudorandom number generator seed. Refer to `tensorflow_probability.random.sanitize_seed` for details.
+      data_options (Optional[DataOptions]): Data preprocessing options.
+      model_options (Optional[ModelOptions]): Model configuration options.
+      inference_options (Optional[InferenceOptions]): Inference configuration options.
+      **kwargs: Experimental options. Unsupported keys will raise an exception.
 
     Returns:
-      A CausalImpactAnalysis instance summarizing the effect of the intervention.
+      CausalImpactAnalysis: Summary of intervention effect, including posterior distributions.
     """
-    # Suppress verbose TensorFlow WARNING and INFO messages, which are not useful
-    # for TFP CausalImpact users.
+    # Suppress verbose TensorFlow WARNING and INFO messages for cleaner output.
     tf_log_level = tf.get_logger().level
     tf.get_logger().setLevel(logging.ERROR)
     try:
@@ -264,8 +214,7 @@ def fit_causalimpact(data: pd.DataFrame,
         inference_options = (inference_options if inference_options is not None
                              else InferenceOptions())
 
-        # WARNING: These are implementation details, and have no guarantees of
-        # continuing to work or be respected.
+        # WARNING: Implementation details with no guarantee of future support.
         experimental_model = kwargs.pop("experimental_model", None)
         experimental_tf_function_cache_key_addition = kwargs.pop(
             "experimental_tf_function_cache_key_addition", 0)
@@ -297,18 +246,10 @@ def fit_causalimpact(data: pd.DataFrame,
             alpha=alpha)
 
         if posterior_samples.seasonal_levels.shape[-1] > 0:
-            # If we have k seasonal effects, with num_seasons[0],...,num_seasons[k-1]
-            # distinct seasons respectively, then each seasonal effect's latent state
-            # has dimension num_seasons[0]-1, ..., num_seasons[k-1]-1 and the shape
-            # of posterior_samples.seasonal_levels is
-            #   batch_shape [timeseries_length, total_seasonal_latent_dim]
-            # where
-            #   total_seasonal_latent_dim = num_seasons[0]-1, ..., num_seasons[k-1]-1.
+            # For :k: seasonal effects with :S_i: = num_seasons[i], each latent state has dimension :S_i - 1:. Thus, posterior_samples.seasonal_levels shape:
+            #   [T, sum_{i=1}^{k} (S_i - 1)]
             #
-            # And at each timestep, each seasonal effect's contribution to the
-            # observed value is the 0-th element of its latent state.  Here we extract
-            # these 0-th elements in order to return  the contribution of each
-            # seasonal effect at each time step.
+            # Each seasonal effect's contribution at time :t: is the first element of its latent state. Extract these to obtain seasonal contributions per time step.
             seasonal_levels = []
             index = 0
             for season in model_options.seasons:
@@ -316,13 +257,11 @@ def fit_causalimpact(data: pd.DataFrame,
                 index += season.num_seasons - 1
             seasonal_levels = tf.stack(seasonal_levels, axis=-1)
         else:
-            # If there are no seasonal effects, then we can just use
-            # posterior_samples.seasonal_levels, which has the correct shape:
-            #     batch_shape + [num_samples, timeseries_length, 0]
+            # If :S: = 0, use posterior_samples.seasonal_levels with shape:
+            #     [T, 0]
             seasonal_levels = posterior_samples.seasonal_levels
 
-        # Translate posterior samples to a CausalImpact-specific object,
-        # rather than exposing GibbsSamplerState.
+        # Convert posterior samples to CausalImpact-specific structure, hiding GibbsSamplerState.
         ci_posterior_samples = CausalImpactPosteriorSamples(
             observation_noise_scale=posterior_samples.observation_noise_scale,
             level_scale=posterior_samples.level_scale,
@@ -351,7 +290,7 @@ def _run_gibbs_sampler(
         seasonal_drift_scales: TensorLike, weights: TensorLike, level: TensorLike,
         slope: TensorLike, seed: TensorLike, dtype, seasons: List[Seasons],
         experimental_tf_function_cache_key_addition: int):  # pylint: disable=unused-argument
-    """Fits parameters of the model using Gibbs sampling."""
+    """Fit model parameters via Gibbs sampling."""
     if not sts_model:
         sts_model = _build_default_gibbs_model(
             design_matrix=design_matrix,
@@ -403,29 +342,25 @@ def _build_default_gibbs_model(
         dtype,
         seasons: List[Seasons],
 ):
-    """A method to build the default STS model.
+    """Build the default structural time series (STS) model.
 
-    The default model is a local level model with observation noise, plus optional
-    sparse regression using observed covariates, if given.
+    The default STS model includes a local level component with observation noise and optional sparse regression with covariates.
 
     Args:
-      design_matrix: Optional Tensor of [timesteps, features] with the covariates.
-      outcome_ts: An instance of tfp.sts.MaskedTimeSeries.
-      level_scale: tf.Tensor - Initial scale for the local level.
-      outcome_sd: Standard deviation of non-nan values in the `observed_ts`. Used
-        for scaling parameter defaults.
-      dtype: Desired dtype for Gibbs model.
-      seasons: An interable of seasonal options for seasonal components to add
-        to the model.
+      design_matrix (Optional[tf.Tensor]): Covariate matrix :X: with shape [T, F].
+      outcome_ts (tfp.sts.MaskedTimeSeries): Masked outcome time series :y_t:.
+      level_scale (tf.Tensor): Initial scale :sigma_mu: for the local level :mu_t:.
+      outcome_sd (tf.Tensor): Standard deviation :sigma_y: of non-NaN values in :y_t:, used for parameter scaling.
+      dtype: Data type for the Gibbs sampler model.
+      seasons (List[Seasons]): Seasonal components :S: to include in the model.
 
     Returns:
-      A tfp.sts.StructuralTimeSeries instance.
+      tfp.sts.StructuralTimeSeries: Configured STS model.
     """
     local_level_prior_sample_size = tf.constant(32., dtype=dtype)
-
-    level_concentration = tf.cast(local_level_prior_sample_size / 2., dtype=dtype)
-    level_variance_prior_scale = level_scale * level_scale * (
-            local_level_prior_sample_size / 2.)
+    local_level_prior_sample_size_devide_by_2 = tf.multiply(local_level_prior_sample_size, 0.5)
+    level_concentration = tf.cast(local_level_prior_sample_size_devide_by_2, dtype=dtype)
+    level_variance_prior_scale = tf.multiply(level_scale ** 2, local_level_prior_sample_size_devide_by_2)
 
     level_variance_prior = tfd.InverseGamma(
         concentration=level_concentration, scale=level_variance_prior_scale)
@@ -481,7 +416,7 @@ def _build_default_gibbs_model(
                 allow_drift=True,
                 constrain_mean_effect_to_zero=True,
                 # TODO(colcarroll,jburnim): If there are multiple seasonal effects,
-                # should the prior for the draft scale or initial effect be
+                # should the prior for the drift scale or initial effect be
                 # scaled down?
                 drift_scale_prior=tfd.TransformedDistribution(
                     bijector=tfb.Invert(tfb.Square()),
@@ -512,25 +447,26 @@ def _train_causalimpact_sts(
         seasons: List[Seasons],
         experimental_tf_function_cache_key_addition: int = 0,
 ) -> Tuple[gibbs_sampler.GibbsSamplerState, TensorLike, TensorLike]:
-    """Structural Time Series (STS) methods for CausalImpact.
+    """Fit the structural time series (STS) model for CausalImpact.
 
-    Fits a Tensorflow Probability (TFP) structural time series model.
+    Fits a TensorFlow Probability (TFP) structural time series model.
 
     Args:
-      ci_data: CausalImpact data, used to fit a model.
-      prior_level_sd: float: Prior standard deviation of the Gaussian random walk
-        of the local level model. Expressed in terms of data standard deviations.
-      seed: PRNG seed; see `tensorflow_probability.random.sanitize_seed` for
-        details.
-      num_results: See `fit_causalimpact`.
-      num_warmup_steps: See `fit_causalimpact`.
-      model: Optional custom model - `tfp.sts.StructuralTimeSeries`.
-      dtype: The dtype to use throughout computation.
-      seasons: See `fit_causalimpact`.
-      experimental_tf_function_cache_key_addition: See `fit_causalimpact`.
+      ci_data (cid.CausalImpactData): CausalImpact data object for model fitting.
+      prior_level_sd (float): Prior standard deviation :sigma_mu: for the local level's Gaussian random walk, in data standard deviation units.
+      seed (_SeedType): PRNG seed; see `tensorflow_probability.random.sanitize_seed` for details.
+      num_results (int): Number of posterior samples :N:.
+      num_warmup_steps (int): Number of warmup iterations :W:.
+      model (Optional[tfp.sts.StructuralTimeSeries]): Custom STS model.
+      dtype: Data type for computations.
+      seasons (List[Seasons]): Seasonal components :S: for the model.
+      experimental_tf_function_cache_key_addition (int): Extra key addition for caching purposes.
 
     Returns:
-      The model used, posterior samples, posterior means, posterior trajectories
+      Tuple[gibbs_sampler.GibbsSamplerState, TensorLike, TensorLike]:
+        - Posterior samples.
+        - Posterior means :E[y_t | data]:.
+        - Posterior predictive trajectories :y_t^(s):.
     """
     if isinstance(seed, int):
         # Integers are stateful seeds, thus calling twice with the same seed will
@@ -600,24 +536,24 @@ def _train_causalimpact_sts(
         # By passing in an extra Python integer, it will be part of the cache
         # key. Calling this twice with the same
         # experimental_tf_function_cache_key_addition will result in a cache hit,
-        # while changing it to a (previously unused) different value will result
-        # in a miss.
+        # while changing it to a (previously unused) different value will result in a miss.
         experimental_tf_function_cache_key_addition=experimental_tf_function_cache_key_addition
     )
     return samples, posterior_means, posterior_predictive_samples
 
 
 def _get_posterior_means_and_trajectories(sts_model, posterior_samples, seed):
-    """Computes means and draws from posterior.
+    """Compute posterior means and generate posterior predictive trajectories.
 
     Args:
-      sts_model: Model that was used to fit the samples.
-      posterior_samples: Draws from posterior of sts_model.
+      sts_model (tfp.sts.StructuralTimeSeries): Fitted STS model.
+      posterior_samples (gibbs_sampler.GibbsSamplerState): Posterior samples from STS model.
       seed: PRNG seed.
 
     Returns:
-      Posterior means, posterior predictive samples
+      Tuple[TensorLike, TensorLike]: Posterior means :E[y_t | data]:, posterior predictive trajectories :y_t^(s):.
     """
+    # Generate one-step-ahead predictive distributions.
     predictive_distributions = gibbs_sampler.one_step_predictive(
         sts_model,
         posterior_samples,
@@ -639,38 +575,38 @@ def _compute_impact(
         ci_data: cid.CausalImpactData,
         alpha: float = 0.05,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Computes impact using posterior predictive distributions.
+    """Compute impact estimates using posterior predictive distributions.
 
-    Adds two attributes, both pd.DataFrames: one with timepoint-wise impact
-    estimates, and another containing summaries over the post-treatment period.
-    The former is used for plotting, the latter for summarizing overall impact.
+    Generates two pd.DataFrames:
+      - Timepoint-wise impact estimates for visualization.
+      - Summary statistics over the post-treatment period.
 
     Args:
-      posterior_means: Mean of posterior predictive trajectories.
-      posterior_trajectories: Draws from the posterior predictive distribution.
-        variables from sts_model.
-      ci_data: an instance of a cid.CausalImpactData object.
-      alpha: float, used to get confidence level for predictions.
+      posterior_means (TensorLike): Mean of posterior predictive trajectories :E[y_t | data]:.
+      posterior_trajectories (TensorLike): Posterior predictive samples :y_t^(s):.
+      ci_data (cid.CausalImpactData): CausalImpact data object.
+      alpha (float): Significance level :alpha: for credible intervals.
 
     Returns:
-      Two dataframes, the first with the impact timeseries, the second with a
-      summary of that data.
+      Tuple[pd.DataFrame, pd.DataFrame]:
+        - Timepoint-wise impact series.
+        - Summary statistics of impact over post-treatment period.
     """
-    # Check alpha.
+    # Validate significance level :alpha:.
     if not 0 < alpha < 1:
         raise ValueError("`alpha` must be between 0 and 1.")
 
-    # Extract attributes of data object that we'll need for computing impact.
+    # Extract observed time series :y_t: pre- and post-intervention.
     observed_ts_pre = ci_data.pre_intervention_data[ci_data.target_col]
     observed_ts_post = ci_data.after_pre_intervention_data[ci_data.target_col]
-    # Filter out data after the post-period.
+    # Restrict post-intervention data to specified period.
     observed_ts_post = observed_ts_post.loc[
         (observed_ts_post.index >= ci_data.post_intervention_period[0])
         & (observed_ts_post.index <= ci_data.post_intervention_period[1])]
     observed_ts_full = pd.concat([observed_ts_pre, observed_ts_post], axis=0)
 
-    # Get samples of posterior predictive trajectories and posterior means.
-    # Ensure that lower quantile comes first.
+    # Obtain posterior predictive samples and means.
+    # Order quantiles correctly.
     quantiles = (alpha / 2.0, 1.0 - (alpha / 2.0))
     posterior_trajectories, posterior_trajectory_summary = (
         _sample_posterior_predictive(
@@ -679,15 +615,13 @@ def _compute_impact(
             ci_data=ci_data,
             quantiles=quantiles))
 
-    # Use the posterior samples of trajectories to compute corresponding
-    # trajectories for point, cumulative point, and relative effect estimates.
+    # Derive point, cumulative, and relative effect trajectories from posterior samples.
     trajectory_dict = _compute_impact_trajectories(
         posterior_trajectories,
         observed_ts_full,
         treatment_start=ci_data.post_intervention_period[0])
 
-    # Create time series of mean and lower/upper quantiles for the point and
-    # cumulative predictions.
+    # Generate time series with mean and quantile bounds for point and cumulative predictions.
     series = _compute_impact_estimates(
         posterior_trajectory_summary=posterior_trajectory_summary,
         trajectory_dict=trajectory_dict,
@@ -695,7 +629,7 @@ def _compute_impact(
         ci_data=ci_data,
         quantiles=quantiles)
 
-    # Create table to summarize results over the entire post-period.
+    # Generate summary table for the entire post-treatment period.
     summary = _compute_summary(
         posterior_trajectory_summary=posterior_trajectory_summary,
         trajectory_dict=trajectory_dict,
@@ -712,7 +646,7 @@ def _sample_posterior_predictive(
         ci_data: cid.CausalImpactData,
         quantiles: Tuple[float, float]
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Samples from posterior predictive distribution and calculates summaries.
+    """Sample from posterior predictive distribution and calculate summaries.
 
     Draws sample trajectories from the posterior predictive distribution and
     calculates the posterior mean for each time point. The posterior means are
@@ -722,25 +656,20 @@ def _sample_posterior_predictive(
     simulation with a finite number of MCMC iterations will include observation
     noise, so here we calculate the expectation without observation noise.
     This function also calculates posterior quantiles for each time point
-    using the sampled trajectories at the values given in `quantiles`.
+    using the sampled trajectories at the values given in :quantiles:.
 
     Args:
-      posterior_means: Means of the posterior predictive trajectories.
-      posterior_trajectories: Draws from the posterior predictive distribution.
-        variables from sts_model.
-      ci_data: an instance of a cid.CausalImpactData object.
-      quantiles: floats in (0, 1) giving the quantiles to calculate.
+      posterior_means (TensorLike): Means of the posterior predictive trajectories :E[y_t | data]:.
+      posterior_trajectories (TensorLike): Posterior predictive samples :y_t^(s):.
+      ci_data (cid.CausalImpactData): CausalImpact data object.
+      quantiles (Tuple[float, float]): Quantiles :q1:, :q2: to calculate.
 
     Returns:
-      Tuple of:
-        posterior_trajectories: Sampled posterior trajectories. Columns represent
-          the sampled posterior trajectories.
-        posterior_trajectory_summary: Summary of the trajectories, including
-          mean and specified quantiles. Columns represent the summary statistics.
-      In both dataframes, the rows represent time and have the same index as the
-      original data.
+      Tuple[pd.DataFrame, pd.DataFrame]:
+        - posterior_trajectories: Sampled posterior trajectories with time index.
+        - posterior_trajectory_summary: Summary statistics including mean and quantiles.
     """
-    # Check that given quantiles are in (0, 1) and in order.
+    # Validate quantiles are within (0, 1) and ordered.
     if any((q < 0) | (q > 1) for q in quantiles):
         raise ValueError("All elements of `quantiles` must be in (0, 1). Got %s" %
                          quantiles)
@@ -771,18 +700,17 @@ def _sample_posterior_predictive(
 def _package_posterior_trajectories(
         posterior_trajectories: TensorLike,
         ci_data: cid.CausalImpactData) -> pd.DataFrame:
-    """Repackages trajectories into a dataframe.
+    """Repackage trajectories into a dataframe.
 
-    NOTE: if the data in ci_data.model data was scaled, this function will undo
-    the scaling so that the posterior trajectories are on the *original* scale.
+    NOTE: If the data in ci_data.model data was scaled, this function will undo
+    the scaling so that the posterior trajectories are on the original scale.
 
     Args:
-      posterior_trajectories: Sampled posterior predictive trajectories.
-      ci_data: an instance of a cid.CausalImpactData object.
+      posterior_trajectories (TensorLike): Posterior predictive samples :y_t^(s):.
+      ci_data (cid.CausalImpactData): CausalImpact data object.
 
     Returns:
-      pd.DataFrame with rows corresponding to time points and columns
-        corresponding to each sampled posterior trajectory.
+      pd.DataFrame: Posterior trajectories indexed by time with each column representing a sampled trajectory.
     """
     col_names = [
         f"sample_{i + 1}" for i in range(posterior_trajectories.shape[0])
@@ -794,32 +722,32 @@ def _package_posterior_trajectories(
 def _compute_impact_trajectories(
         posterior_trajectories: pd.DataFrame, observed_ts_full: pd.Series,
         treatment_start: OutputDateType) -> Dict[str, pd.DataFrame]:
-    """Computes trajectories of point and cumulative effects.
+    """Compute trajectories of point and cumulative effects.
 
     Uses the sampled posterior predictive trajectories and observed outcome time
     series to compute corresponding sample trajectories of:
-    point effects (observed - predicted),
-    cumulative point effects (cumulative sum(observed - predicted))
+      - Point effects :delta_t: = :y_t: - :y_hat_t:
+      - Cumulative point effects :Delta_t: = sum(:delta_s: for s <= t)
+      - Relative effects :rho_t: = :y_t: / :y_hat_t: - 1
 
     Args:
-      posterior_trajectories: pd.DataFrame with rows corresponding to time points
-        and columns corresponding to each sampled posterior trajectory.
-      observed_ts_full: the observed outcome for the full time period.
-      treatment_start: start time of the treatment.
+      posterior_trajectories (pd.DataFrame): Posterior predictive samples :y_t^(s):.
+      observed_ts_full (pd.Series): Observed outcome :y_t: for the full time period.
+      treatment_start (OutputDateType): Start time of the intervention :t_post_start:.
 
     Returns:
-      dictionary of the posterior prediction, point, and cumulative effect
-      trajectories.
+      Dict[str, pd.DataFrame]: Dictionary containing:
+        - "predictions": Posterior predictive trajectories :y_t^(s):.
+        - "point_effects": Point effect trajectories :delta_t^(s):.
+        - "cumulative_effects": Cumulative point effect trajectories :Delta_t^(s):.
     """
 
     # Point effects are zero in the pre-period by definition. However, we do not
     # enforce this restriction here so that the pre-period point effect
     # estimates can be used as a model check (the uncertainty intervals should
     # include zero) and as a check of the treatment start date.
-    # To calculate point effects, we first subtract the observed data from the
-    # trajectories and then multiply by -1 to get the correct quantity. This
-    # way, we avoid having to replicate the observed data to match the shape of
-    # the sampled trajectories.
+    # To calculate point effects, subtract the predicted from the observed data and multiply by -1.
+    # This avoids replicating the observed data to match the shape of the sampled trajectories.
     point_effect_trajectories = posterior_trajectories.sub(
         observed_ts_full, axis=0).mul(-1)
 
@@ -843,32 +771,23 @@ def _compute_impact_estimates(posterior_trajectory_summary: pd.DataFrame,
                               observed_ts_full: pd.Series,
                               ci_data: cid.CausalImpactData,
                               quantiles: Tuple[float, float]) -> pd.DataFrame:
-    """Computes timepoint-wise summaries of predictions and impact estimates.
+    """Compute timepoint-wise summaries of predictions and impact estimates.
 
-    Takes the posterior means and trajectories calculated in predict() and
-    computes point and cumulative point effects at each time point by
-    subtracting from the observed data. This function calculates means and
-    quantiles for point and cumulative point effects.
-
-    The output of this function is the input to creating impact plots.
+    Generates a DataFrame with mean and quantile bounds for:
+      - Predicted values :y_hat_t:
+      - Point effects :delta_t: = :y_t: - :y_hat_t:
+      - Cumulative effects :Delta_t: = sum(:delta_s: for s <= t)
+      - Relative effects :rho_t: = :y_t: / :y_hat_t: - 1
 
     Args:
-      posterior_trajectory_summary: pd.DataFrame output of predict() containing
-        the posterior means and quantiles of the predictions.
-      trajectory_dict: dictionary of the posterior prediction trajectories and
-        point, cumulative, and relative effect trajectories as calculated in
-        _compute_impact_trajectories().
-      observed_ts_full: the observed outcome for the full time period.
-      ci_data: an instance of a cid.CausalImpactData object.
-      quantiles: floats in (0, 1) giving the quantiles to calculate.
+      posterior_trajectory_summary (pd.DataFrame): Summary of posterior trajectories including means and quantiles.
+      trajectory_dict (Dict[str, pd.DataFrame]): Dictionary containing predictions and effect trajectories.
+      observed_ts_full (pd.Series): Observed outcome :y_t: for the full time period.
+      ci_data (cid.CausalImpactData): CausalImpact data object.
+      quantiles (Tuple[float, float]): Quantiles :q1:, :q2: to calculate.
 
     Returns:
-      pd.DataFrame with the same index as the original data and
-        columns for mean, lower quantile, and upper quantile for the point
-        predictions, point effects (i.e. observed data minus point prediction),
-        and cumulative effects (i.e. cumulative observed data minus cumulative
-        point prediction). It will also have columns for the start and end
-        points of the pre and post periods.
+      pd.DataFrame: Timepoint-wise impact estimates with mean and quantile bounds.
     """
     # Using the posterior means and observed time series, calculate mean point
     # and cumulative point effects. Note that cumulative effects are zero in the
@@ -915,10 +834,9 @@ def _compute_impact_estimates(posterior_trajectory_summary: pd.DataFrame,
             ["observed", "posterior_mean", "posterior_lower", "posterior_upper"]
         )] = np.nan
 
-    # The impact estimates so far of the range [pre_period[0], end_of_input_data],
-    # but we actually want to return the original values before the pre-period.
-    # Thus change the index to match the original data, then copy over the entire
-    # original timeseries.
+    # The impact estimates so far cover [pre_period[0], end_of_input_data],
+    # but we want to return the original values before the pre-period.
+    # Thus, reindex to match the original data and retain the full time series.
     impact_estimates = impact_estimates.reindex(
         ci_data.data.index, copy=False, fill_value=np.nan)
     impact_estimates["observed"] = ci_data.data[ci_data.target_col]
@@ -937,7 +855,7 @@ def _compute_summary(posterior_trajectory_summary: pd.DataFrame,
                      observed_ts_post: pd.Series, post_period: OutputPeriodType,
                      quantiles: Tuple[float,
                      float], alpha: float) -> pd.DataFrame:
-    """Computes summary statistics of the average and cumulative impact.
+    """Compute summary statistics of the average and cumulative impact.
 
     Calculates average and cumulative summaries of counterfactual forecasts and
     pointwise impact estimates over the post-treatment period. Note that because
@@ -946,22 +864,15 @@ def _compute_summary(posterior_trajectory_summary: pd.DataFrame,
     and instead need to use the sampled trajectories to get the correct values.
 
     Args:
-      posterior_trajectory_summary: pd.DataFrame output of predict() containing
-        the posterior means and quantiles of the predictions.
-      trajectory_dict: dictionary of the posterior prediction trajectories and
-        point and cumulative effect trajectories as calculated in
-        _compute_impact_trajectories().
-      observed_ts_post: the observed outcome for the post-period.
-      post_period: Range of the post-period.
-      quantiles: floats in (0, 1) giving the quantiles to calculate.
-      alpha: float specifying the quantiles.
+      posterior_trajectory_summary (pd.DataFrame): Summary of posterior trajectories including means and quantiles.
+      trajectory_dict (Dict[str, pd.DataFrame]): Dictionary containing predictions and effect trajectories.
+      observed_ts_post (pd.Series): Observed outcome :y_t: for the post-period.
+      post_period (OutputPeriodType): Range of the post-period :t_post_start:, :t_post_end:.
+      quantiles (Tuple[float, float]): Quantiles :q1:, :q2: to calculate.
+      alpha (float): Significance level :alpha:.
 
     Returns:
-      pd.DataFrame with the same index as the original data and
-        columns for mean, lower quantile, and upper quantile for the point
-        predictions, point effects (i.e. observed data minus point prediction),
-        and cumulative effects (i.e. cumulative observed data minus cumulative
-        point prediction).
+      pd.DataFrame: Summary statistics for average and cumulative impact over the post-period.
     """
 
     # Restrict the posterior mean trajectory and sampled impact trajectories to
@@ -975,7 +886,7 @@ def _compute_summary(posterior_trajectory_summary: pd.DataFrame,
     }
 
     # PREDICTIONS
-    # Calculate average and cumulative values of the posterior mean -- i.e. the
+    # Calculate average and cumulative values of the posterior mean -- i.e., the
     # counterfactual predictions -- over the post-period.
     average_prediction = posterior_mean.mean()
     cumulative_prediction = posterior_mean.sum()
