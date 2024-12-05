@@ -1,7 +1,18 @@
-# Copyright ...
+# Copyright 2019-2023 The TFP CausalImpact Authors
+# Copyright 2014 Google Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-# ...
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for causalimpact_lib.py."""
 
 import os
@@ -39,7 +50,7 @@ def _create_impact_data():
     n_samples = 10
     treat_start_index = 50
     post_period_length = n_time_points - treat_start_index
-    treatment_effect = 5.0
+    treatment_effect = 5.
     cumulative_treatment_effect = treatment_effect * post_period_length
     index = pd.date_range("2018-01-01", periods=n_time_points, freq="D")
     treatment_start = index[treat_start_index]
@@ -92,7 +103,7 @@ def _create_impact_data():
     ]
     point_trajectory_summary = point_trajectories[sample_cols].copy()
     point_trajectory_summary.columns = [
-        "absolute_effect_" + stat for stat in summary_stats
+        "point_effects_" + stat for stat in summary_stats
     ]
     cumulative_trajectory_summary = cumulative_trajectories[sample_cols].copy()
     cumulative_trajectory_summary.columns = [
@@ -133,40 +144,40 @@ def _create_impact_data():
             "cumulative": expected_pred.sum()
         },
         "predicted_sd": {
-            "average": 0.0,
-            "cumulative": 0.0
+            "average": 0.,
+            "cumulative": 0.
         },
-        "absolute_effect": {
+        "abs_effect": {
             "average": treatment_effect,
             "cumulative": cumulative_treatment_effect
         },
-        "absolute_effect_lower": {
+        "abs_effect_lower": {
             "average": treatment_effect,
             "cumulative": cumulative_treatment_effect
         },
-        "absolute_effect_upper": {
+        "abs_effect_upper": {
             "average": treatment_effect,
             "cumulative": cumulative_treatment_effect
         },
-        "absolute_effect_sd": {
-            "average": 0.0,
-            "cumulative": 0.0
+        "abs_effect_sd": {
+            "average": 0.,
+            "cumulative": 0.
         },
-        "relative_effect": {
+        "rel_effect": {
             "average": treatment_effect / expected_pred.mean(),
             "cumulative": (cumulative_treatment_effect) / expected_pred.sum()
         },
-        "relative_effect_lower": {
+        "rel_effect_lower": {
             "average": treatment_effect / expected_pred.mean(),
             "cumulative": (cumulative_treatment_effect) / expected_pred.sum()
         },
-        "relative_effect_upper": {
+        "rel_effect_upper": {
             "average": treatment_effect / expected_pred.mean(),
             "cumulative": (cumulative_treatment_effect) / expected_pred.sum()
         },
-        "relative_effect_sd": {
-            "average": 0.0,
-            "cumulative": 0.0
+        "rel_effect_sd": {
+            "average": 0.,
+            "cumulative": 0.
         }
     }
     expected_summary = pd.DataFrame(expected_summary_dict)
@@ -208,178 +219,178 @@ class CausalImpactTest(parameterized.TestCase):
         cls.treatment_start = cls.post_period[0]
 
     def testShortestPeriodAfterPrePeriod(self):
-        ci_analysis = ci.fit_causal_impact(
+        ci_analysis = ci.fit_causalimpact(
             data=self.data,
             pre_period=(self.data.index[0], self.data.index[-2]),
             post_period=(self.data.index[-1], self.data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10),
+            inference_options=ci.InferenceOptions(num_results=10),
             seed=(1, 2))
         self.assertIsNotNone(ci_analysis)
 
     def testUnexpectedKwargsRaisesAnError(self):
         """kwargs are accepted for experimental args, but typos should be caught."""
         with self.assertRaises(TypeError):
-            ci.fit_causal_impact(
+            ci.fit_causalimpact(
                 some_unknown_arg=3,
                 data=self.data,
                 pre_period=(self.data.index[0], self.data.index[-2]),
                 post_period=(self.data.index[-1], self.data.index[-1]),
-                inference_options=ci.InferenceOptions(num_posterior_samples=10),
+                inference_options=ci.InferenceOptions(num_results=10),
                 seed=(1, 2))
 
     @parameterized.named_parameters(
         {
             "testcase_name": "0.01",
-            "prior_sigma_mu": 0.01,
+            "prior_level_sd": 0.01,
         }, {
             "testcase_name": "0.1",
-            "prior_sigma_mu": 0.1,
+            "prior_level_sd": 0.1,
         }, {
             "testcase_name": "0.5",
-            "prior_sigma_mu": 0.5,
+            "prior_level_sd": 0.5,
         })
-    def testPriorSigmaMuIsUsed(self, prior_sigma_mu):
+    def testPriorLevelSdIsUsed(self, prior_level_sd):
         seed = (0, 0)
         treatment_start = 20
         data = self.data
-        ci_analysis = ci.fit_causal_impact(
+        ci_analysis = ci.fit_causalimpact(
             data=data,
             pre_period=(data.index[0], data.index[treatment_start - 1]),
             post_period=(data.index[treatment_start], data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=100, num_warmup_steps=100),
-            model_options=ci.ModelOptions(prior_sigma_mu=prior_sigma_mu),
+            inference_options=ci.InferenceOptions(
+                num_results=100, num_warmup_steps=100),
+            model_options=ci.ModelOptions(prior_level_sd=prior_level_sd),
             seed=seed)
         # It is a little surprising this passes -- it may be because we are Learning
         # on a small amount of data, but it also may be because the InverseGamma
         # prior is too strong.
         np.testing.assert_allclose(
-            np.mean(ci_analysis.posterior_samples.sigma_mu),
-            prior_sigma_mu,
-            atol=0.2 * prior_sigma_mu)
+            np.mean(ci_analysis.posterior_samples.level_scale),
+            prior_level_sd,
+            atol=0.2 * prior_level_sd)
 
     def testModelTrainingNoDatetimeIndexSucceeds(self):
         seed = (0, 0)
         data = self.data.copy()
         data.index = np.arange(data.shape[0])
         treatment_start = 20
-        ci_analysis = ci.fit_causal_impact(
+        ci_analysis = ci.fit_causalimpact(
             data=data,
             pre_period=(data.index[0], data.index[treatment_start - 1]),
             post_period=(data.index[treatment_start], data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10),
+            inference_options=ci.InferenceOptions(num_results=10),
             seed=seed)
         self.assertIsNotNone(ci_analysis)
 
     def testInterceptIsIncluded(self):
         seed = (0, 0)
-        ci_analysis = ci.fit_causal_impact(
+        ci_analysis = ci.fit_causalimpact(
             data=self.data,
             pre_period=self.pre_period,
             post_period=self.post_period,
-            inference_options=ci.InferenceOptions(num_posterior_samples=10),
+            inference_options=ci.InferenceOptions(num_results=10),
             seed=seed)
         # TEST_DATA.txt has 2 features, plus one intercept
-        self.assertEqual(ci_analysis.posterior_samples.beta.shape[-1], 3)
+        self.assertEqual(ci_analysis.posterior_samples.weights.shape[-1], 3)
 
     def testModelTrainingNoCovariates(self):
         ci_data = cid.CausalImpactData(
-            data=self.data["y"],
+            self.data["y"],
             pre_intervention_period=self.pre_period,
             post_intervention_period=self.post_period,
             dtype=tf.float64)
-        sts_model = causalimpact_lib._build_default_sts_model(
-            design_matrix=ci_data.normalized_whole_period_features,
-            y_t=ci_data.pre_intervention_target_ts.time_series,
-            sigma_mu=tf.constant(0.01, dtype=tf.float64),
-            sigma_y=tf.constant(1.0, dtype=tf.float64),
+        sts_model = causalimpact_lib._build_default_gibbs_model(
+            ci_data.normalized_whole_period_features,
+            ci_data.pre_intervention_target_ts,
+            outcome_sd=tf.constant(1., dtype=tf.float64),
+            level_scale=tf.constant(0.01, dtype=tf.float64),
             dtype=tf.float64,
-            seasonal_effects=[])
+            seasons=[])
         model_params = [p.name for p in sts_model.parameters]
-        # TODO: Consider how to make these tests more robust,
+        # TODO(colcarroll,jburnim): Consider how to make these tests more robust,
         # as they will currently break on name changes in the underlying libraries.
         self.assertIn("observation_noise_scale", model_params)
         self.assertTrue(
-            any(["LocalLevel/_scale" in param for param in model_params]) or
+            any(["LocalLevel/_level_scale" in param for param in model_params]) or
             # Name used by GibbsSampler.
-            any(["local_level/_scale" in param for param in model_params]))
+            any(["local_level/_level_scale" in param for param in model_params]))
 
     def testModelTrainingWithCovariates(self):
         seed = (1, 1)
         ci_data = cid.CausalImpactData(
-            data=self.data,
+            self.data,
             pre_intervention_period=self.pre_period,
             post_intervention_period=self.post_period,
             dtype=tf.float32)
-        posterior_samples, *_ = causalimpact_lib._train_sts_model(
-            causal_data=ci_data,
-            prior_sigma_mu=0.01,
+        posterior_samples, *_ = causalimpact_lib._train_causalimpact_sts(
+            ci_data=ci_data,
             seed=seed,
-            num_posterior_samples=10,
             num_warmup_steps=100,
-            model=None,
+            num_results=10,
+            prior_level_sd=0.01,
             dtype=tf.float32,
-            seasonal_effects=[])
+            seasons=[])
 
-        self.assertFalse(np.any(np.isnan(posterior_samples.beta)))
-        self.assertTrue(np.all(posterior_samples.sigma_epsilon <= 1.2))
-        self.assertTrue(np.all(posterior_samples.sigma_mu <= 1))
-        self.assertFalse(np.any(np.isnan(posterior_samples.weights)))  # Assuming 'weights' corresponds to 'beta'
+        self.assertFalse(np.any(np.isnan(posterior_samples.level)))
+        self.assertTrue(np.all(posterior_samples.observation_noise_scale <= 1.2))
+        self.assertTrue(np.all(posterior_samples.level_scale <= 1))
+        self.assertFalse(np.any(np.isnan(posterior_samples.weights)))
 
     def testPredictionDims_NoCovars(self):
-        num_posterior_samples = 10
-        impact = ci.fit_causal_impact(
+        num_results = 10
+        impact = ci.fit_causalimpact(
             self.data["y"],
-            pre_period=(self.data.index[0], self.data.index[49]),
-            post_period=(self.data.index[50], self.data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=num_posterior_samples),
-        )
-        self.assertIsNotNone(impact.posterior_samples.sigma_epsilon)
-        self.assertIsNotNone(impact.posterior_samples.sigma_mu)
-        self.assertIsNotNone(impact.posterior_samples.mu_t)
-        # There are no covariates, expect this to not be set.
-        self.assertIsNone(impact.posterior_samples.beta)
-
-        # Check that time indices are correct.
-        self.assertTrue(impact.series.index.equals(self.data.index))
-
-        # Check that we got the right number of samples.
-        self.assertEqual(impact.posterior_samples.sigma_epsilon.shape[0],
-                         num_posterior_samples)
-
-    def testPredictionDims_WithCovars(self):
-        num_posterior_samples = 10
-        impact = ci.fit_causal_impact(
-            self.data,
+            inference_options=ci.InferenceOptions(num_results=num_results),
             pre_period=self.pre_period,
             post_period=self.post_period,
-            inference_options=ci.InferenceOptions(num_posterior_samples=num_posterior_samples),
+        )
+        self.assertIsNotNone(impact.posterior_samples.observation_noise_scale)
+        self.assertIsNotNone(impact.posterior_samples.level_scale)
+        self.assertIsNotNone(impact.posterior_samples.level)
+        # There are no covariates, expect this to not be set.
+        self.assertIsNone(impact.posterior_samples.weights)
+
+        # Check that time indices are correct.
+        self.assertTrue(impact.series.index.equals(self.data.index))
+
+        # Check that we got the right number of samples.
+        self.assertEqual(impact.posterior_samples.observation_noise_scale.shape[0],
+                         num_results)
+
+    def testPredictionDims_WithCovars(self):
+        num_results = 10
+        impact = ci.fit_causalimpact(
+            self.data,
+            inference_options=ci.InferenceOptions(num_results=num_results),
+            pre_period=self.pre_period,
+            post_period=self.post_period,
         )
 
         # Check that time indices are correct.
         self.assertTrue(impact.series.index.equals(self.data.index))
 
         # Check that we got the right number of samples.
-        self.assertEqual(impact.posterior_samples.sigma_epsilon.shape[0],
-                         num_posterior_samples)
+        self.assertEqual(impact.posterior_samples.observation_noise_scale.shape[0],
+                         num_results)
         # Confirm that for a low dimensional example, the weights are never 0,
         # since the default prior sets the nonzero probability to 1 for
         # fewer than 3 dimensions (in which case overfitting is not a great fear).
-        self.assertEqual((impact.posterior_samples.beta.numpy() == 0).sum(), 0)
+        self.assertEqual((impact.posterior_samples.weights.numpy() == 0).sum(), 0)
 
-    def testComputeEffectTrajectories(self):
-        """Test for _compute_effect_trajectories()."""
+    def testComputeImpactTrajectories(self):
+        """Test for _compute_impact_trajectories()."""
         # Load test data.
         test_impact_data = _create_impact_data()
         expected_trajectories = test_impact_data["trajectory_dict"]
 
         # Pull out the posterior trajectories. They are an input to
-        # _compute_effect_trajectories() and returned unmodified in its output
+        # _compute_impact_trajectories() and returned unmodified in its output
         # (just renamed to "predictions").
         posterior_trajectories = expected_trajectories["predictions"]
 
-        trajectory_dict = causalimpact_lib._calculate_effect_trajectories(
+        trajectory_dict = causalimpact_lib._compute_impact_trajectories(
             posterior_trajectories=posterior_trajectories,
-            y_full=test_impact_data["observed_ts_full"],
+            observed_ts_full=test_impact_data["observed_ts_full"],
             treatment_start=test_impact_data["treatment_start"])
 
         expected_keys = ["predictions", "point_effects", "cumulative_effects"]
@@ -387,7 +398,7 @@ class CausalImpactTest(parameterized.TestCase):
             self.assertTrue(trajectory_dict[k].equals(expected_trajectories[k]))
 
     def testComputeImpactEstimates(self):
-        """Test for _aggregate_impact_estimates()."""
+        """Test for _compute_impact_estimates()."""
         # Load test data.
         test_impact_data = _create_impact_data()
         expected_trajectories = test_impact_data["trajectory_dict"]
@@ -395,15 +406,15 @@ class CausalImpactTest(parameterized.TestCase):
 
         # Compute trajectories of point, cumulative, and relative effects using
         # test data.
-        trajectory_dict = causalimpact_lib._calculate_effect_trajectories(
+        trajectory_dict = causalimpact_lib._compute_impact_trajectories(
             posterior_trajectories=expected_trajectories["predictions"],
-            y_full=test_impact_data["observed_ts_full"],
+            observed_ts_full=test_impact_data["observed_ts_full"],
             treatment_start=test_impact_data["treatment_start"])
-        impact_estimates = causalimpact_lib._aggregate_impact_estimates(
-            trajectory_summary=test_impact_data["trajectory_summary"],
-            trajectories=trajectory_dict,
-            y_full=test_impact_data["observed_ts_full"],
-            causal_data=cid.CausalImpactData(
+        impact_estimates = causalimpact_lib._compute_impact_estimates(
+            posterior_trajectory_summary=test_impact_data["posterior_summary"],
+            trajectory_dict=trajectory_dict,
+            observed_ts_full=test_impact_data["observed_ts_full"],
+            ci_data=cid.CausalImpactData(
                 data=test_impact_data["observed_ts_full"],
                 pre_intervention_period=test_impact_data["pre_period"],
                 post_intervention_period=test_impact_data["post_period"],
@@ -418,7 +429,7 @@ class CausalImpactTest(parameterized.TestCase):
                                       expected_impact_estimates)
 
     def testComputeImpactSummary(self):
-        """Test for _summarize_impact()."""
+        """Test for _compute_summary()."""
 
         # Load test data.
         test_impact_data = _create_impact_data()
@@ -426,16 +437,16 @@ class CausalImpactTest(parameterized.TestCase):
         posterior_trajectory_summary = (test_impact_data["trajectory_summary"])
         expected_summary = test_impact_data["expected_summary"]
 
-        trajectory_dict = causalimpact_lib._calculate_effect_trajectories(
+        trajectory_dict = causalimpact_lib._compute_impact_trajectories(
             posterior_trajectories=expected_trajectories["predictions"],
-            y_full=test_impact_data["observed_ts_full"],
+            observed_ts_full=test_impact_data["observed_ts_full"],
             treatment_start=test_impact_data["treatment_start"])
 
         # Calculate impact summary using test data.
-        summary = causalimpact_lib._summarize_impact(
-            trajectory_summary=posterior_trajectory_summary,
-            trajectories=trajectory_dict,
-            y_post=test_impact_data["observed_ts_post"],
+        summary = causalimpact_lib._compute_summary(
+            posterior_trajectory_summary=posterior_trajectory_summary,
+            trajectory_dict=trajectory_dict,
+            observed_ts_post=test_impact_data["observed_ts_post"],
             post_period=test_impact_data["post_period"],
             quantiles=(0.025, 0.975),
             alpha=0.05)
@@ -469,21 +480,21 @@ class CausalImpactTest(parameterized.TestCase):
         treat_index = 50
         treat_amt = 5
         test_data = _create_test_data(treat_amt, treat_index)
-        impact = ci.fit_causal_impact(
+        impact = ci.fit_causalimpact(
             test_data.copy(),
             pre_period=(test_data.index[0], test_data.index[treat_index - 1]),
             post_period=(test_data.index[treat_index], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10),
+            inference_options=ci.InferenceOptions(num_results=10),
             seed=seed)
         self.assertIsInstance(impact.series, pd.DataFrame)
         self.assertIsInstance(impact.summary, pd.DataFrame)
 
         # Check that `evaluate` is deterministic (when using a stateless seed).
-        new_impact = ci.fit_causal_impact(
+        new_impact = ci.fit_causalimpact(
             test_data,
             pre_period=(test_data.index[0], test_data.index[treat_index - 1]),
             post_period=(test_data.index[treat_index], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10),
+            inference_options=ci.InferenceOptions(num_results=10),
             seed=seed)
 
         pd.testing.assert_frame_equal(impact.series, new_impact.series)
@@ -511,38 +522,37 @@ class CausalImpactTest(parameterized.TestCase):
         pre_period = (test_data.index[0], test_data.index[treat_index - 1])
         post_period = (test_data.index[treat_index],
                        test_data.index[timesteps_before_post_period_ends - 1])
-        after_post_period = ("2022-01-21", test_data.index[-1])
-        impact = ci.fit_causal_impact(
+        impact = ci.fit_causalimpact(
             test_data.copy(),
             pre_period=pre_period,
             post_period=post_period,
-            inference_options=ci.InferenceOptions(num_posterior_samples=10),
+            inference_options=ci.InferenceOptions(num_results=10),
             seed=0)
         # This confirms that the total cumulative effect is approximately correct.
         # If we did not respect the end of post periods, it would be double.
         np.testing.assert_allclose(
-            impact.summary.loc["cumulative", "absolute_effect"], 250, rtol=0.2)
+            impact.summary.loc["cumulative", "abs_effect"], 250, rtol=0.2)
 
     def testNonAlignedStartTime(self):
         """Verifies that pre/post periods do not need to be aligned with the data."""
         n_time_steps = 100
         treat_start = 50
-        true_effect = 5.0
+        true_effect = 5.
         y = np.random.normal(size=n_time_steps, scale=0.0001)
         y[treat_start:] += true_effect
         date_index = pd.date_range("2018-01-07", periods=n_time_steps, freq="W")
         test_data = pd.DataFrame({"y": y}, index=date_index)
 
-        analysis = ci.fit_causal_impact(
+        analysis = ci.fit_causalimpact(
             test_data,
             # Choose dates not aligned to 2018-01-07 on a weekly cadence.
             pre_period=("2018-01-10", "2018-01-30"),
             post_period=("2018-02-02", "2018-02-23"),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
+            inference_options=ci.InferenceOptions(num_results=10))
         # Verify that we have no information set before post period starts,
         # rounding up.
         self.assertEqual(
-            # TODO: This should be NaN, not 0.
+            # TODO(colcarroll,jburnim): This should be NaN, not 0.
             0,
             analysis.series.loc[pd.to_datetime("2018-01-28"),
             "cumulative_effects_mean"])
@@ -554,7 +564,7 @@ class CausalImpactTest(parameterized.TestCase):
         """Verifies that pre/post periods do not need to be aligned with the data."""
         n_time_steps = 20
         treat_start = 50
-        true_effect = 5.0
+        true_effect = 5.
         y = np.random.normal(size=n_time_steps, scale=0.0001)
         y[treat_start:] += true_effect
         date_index = pd.date_range("2022-01-07", periods=n_time_steps, freq="D")
@@ -569,11 +579,11 @@ class CausalImpactTest(parameterized.TestCase):
         post_period = ("2022-01-15", "2022-01-20")
         after_post_period = ("2022-01-21", data_period[1])
 
-        analysis = ci.fit_causal_impact(
+        analysis = ci.fit_causalimpact(
             test_data,
             pre_period=pre_period,
             post_period=post_period,
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
+            inference_options=ci.InferenceOptions(num_results=10))
         series = analysis.series
         # Drop the non-number values for easier testing.
         series.drop([
@@ -604,8 +614,8 @@ class CausalImpactTest(parameterized.TestCase):
             self.assertTrue(series.loc[pre_period[0]:pre_period[1], [
                                                                         "posterior_mean", "posterior_lower",
                                                                         "posterior_upper",
-                                                                        "absolute_effect_mean", "absolute_effect_lower",
-                                                                        "absolute_effect_upper"
+                                                                        "point_effects_mean", "point_effects_lower",
+                                                                        "point_effects_upper"
                                                                     ]].notna().all(axis=None))
             # Verify cumulative values are zero.
             self.assertTrue(series.loc[pre_period[0]:pre_period[1], [
@@ -622,9 +632,9 @@ class CausalImpactTest(parameterized.TestCase):
                 axis=None))
             # Verify no point and cumulative values.
             self.assertTrue(series.loc[inbetween_period[0]:inbetween_period[1], [
-                                                                                    "absolute_effect_mean",
-                                                                                    "absolute_effect_lower",
-                                                                                    "absolute_effect_upper",
+                                                                                    "point_effects_mean",
+                                                                                    "point_effects_lower",
+                                                                                    "point_effects_upper",
                                                                                     "cumulative_effects_mean",
                                                                                     "cumulative_effects_lower",
                                                                                     "cumulative_effects_upper"
@@ -657,10 +667,10 @@ class CausalImpactTest(parameterized.TestCase):
         })
     def testNumericImpactValues(self,
                                 dtype=tf.float32):
-        """Test for numeric values of fit_causal_impact().
+        """Test for numeric values of evaluate().
 
         This test uses simulated data with a large treatment effect and a large
-        number of posterior samples to check that the numeric values of the estimated
+        number of MCMC draws to check that the numeric values of the estimated
         effects and their uncertainty intervals are close to what we'd expect.
 
         Args:
@@ -668,31 +678,31 @@ class CausalImpactTest(parameterized.TestCase):
         """
         n_time_steps = 100
         treat_start = 50
-        true_effect = 5.0
+        true_effect = 5.
         y = np.random.normal(size=n_time_steps, scale=0.0001)
         y[treat_start:] += true_effect
-        # TODO: Add a version of this test that does not standardize
+        # TODO(colcarroll): Add a version of this test that does not standardize
         # data and by adding (say) 100 to `y`, then asserting that
-        # `impact.series["posterior_lower"] < y[t]`, and that
-        # `y[t] < impact.series["posterior_upper"]``
+        # `mod.series[0, posterior_lower] < y[0]`, and that
+        # y[0] < mod.series[0, posterior_upper]`
         date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
         test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact = ci.fit_causal_impact(
+        impact = ci.fit_causalimpact(
             test_data,
             pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
             post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
+            inference_options=ci.InferenceOptions(num_results=1000),
             data_options=ci.DataOptions(dtype=dtype))
         summary = impact.summary
         # The true absolute effects, as average and sum over post period.
         true_abs_effects = (true_effect, true_effect * (n_time_steps - treat_start))
         np.testing.assert_allclose(
-            summary["absolute_effect"], true_abs_effects, rtol=0.001, atol=0.001)
+            summary["abs_effect"], true_abs_effects, rtol=0.001, atol=0.001)
 
         # See that interval widths (relative to absolute effects) are about 0.
         relative_interval_widths = (
-                (summary["absolute_effect_upper"] - summary["absolute_effect_lower"]) /
-                summary["absolute_effect"])
+                (summary["abs_effect_upper"] - summary["abs_effect_lower"]) /
+                summary["abs_effect"])
         self.assertLessEqual(relative_interval_widths["average"], 0.01)
         self.assertLessEqual(relative_interval_widths["cumulative"], 0.01)
 
@@ -723,29 +733,31 @@ class CausalImpactTest(parameterized.TestCase):
         y[treat_start:] += true_effect
         date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
         test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact_without_season = ci.fit_causal_impact(
+        impact_without_season = ci.fit_causalimpact(
             test_data,
             pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
             post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
+            inference_options=ci.InferenceOptions(num_results=1000),
             data_options=ci.DataOptions(dtype=dtype))
 
-        impact_with_season = ci.fit_causal_impact(
+        impact_with_season = ci.fit_causalimpact(
             test_data,
             pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
             post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
+            inference_options=ci.InferenceOptions(num_results=1000),
             data_options=ci.DataOptions(dtype=dtype),
-            model_options=ci.ModelOptions(seasonal_effects=[
-                SeasonalEffect(
-                    num_periods=4,
-                    steps_per_period=2
-                ),
-                SeasonalEffect(num_periods=7),
-                SeasonalEffect(
-                    num_periods=6,
-                    steps_per_period=((2, 2, 1, 1, 1, 1),)
-                )
+            model_options=ci.ModelOptions(seasons=[
+                ci.Seasons(
+                    num_seasons=4,
+                    # Ensure we can handle num_steps_per_season
+                    # being a tuple.
+                    num_steps_per_season=(2, 1, 1, 1)),
+                ci.Seasons(num_seasons=7),
+                ci.Seasons(
+                    num_seasons=6,
+                    # Ensure we can handle num_steps_per_season
+                    # being a nested tuple.
+                    num_steps_per_season=((2, 2, 1, 1, 1, 1), (2, 2, 1, 1, 1, 1)))
             ]))
 
         # Estimates of the absolute effect will be very wide when seasonality
@@ -753,10 +765,17 @@ class CausalImpactTest(parameterized.TestCase):
         # is modeled, the estimates will be much tighter.
         self.assertAlmostEqual(
             9.5,
-            impact_without_season.summary["absolute_effect_sd"]["average"],
-            delta=1.0)
+            impact_without_season.summary["abs_effect_sd"]["average"],
+            delta=1.)
         self.assertAlmostEqual(
-            0.5, impact_with_season.summary["absolute_effect_sd"]["average"], delta=0.1)
+            0.5, impact_with_season.summary["abs_effect_sd"]["average"], delta=0.1)
+
+        self.assertSequenceEqual(
+            [1000, 300, 0],
+            impact_without_season.posterior_samples.seasonal_levels.shape)
+        self.assertSequenceEqual(
+            [1000, 300, 3],
+            impact_with_season.posterior_samples.seasonal_levels.shape)
 
 
 class _CausalImpactBaseTest(absltest.TestCase):
@@ -778,7 +797,7 @@ class TestDataFormats(_CausalImpactBaseTest):
 
     def test_missing_input(self):
         with self.assertRaises(TypeError):
-            ci.fit_causal_impact()
+            ci.fit_causalimpact()
 
     def test_healthy_input(self):
         data = pd.DataFrame({
@@ -786,11 +805,11 @@ class TestDataFormats(_CausalImpactBaseTest):
             "x1": np.random.randn(200),
             "x2": np.random.randn(200)
         })
-        impact = ci.fit_causal_impact(
+        impact = ci.fit_causalimpact(
             data,
             pre_period=(0, 100),
             post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
+            inference_options=ci.InferenceOptions(num_results=10))
         self.assertEqual(data.shape[0], impact.series.shape[0])
         self.check_all_functions(impact)
 
@@ -804,11 +823,11 @@ class TestPreAndPostPeriod(_CausalImpactBaseTest):
             "x2": np.random.randn(200)
         })
         data.y.iloc[2:5] = np.nan
-        impact = ci.fit_causal_impact(
+        impact = ci.fit_causalimpact(
             data,
             pre_period=(0, 100),
             post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
+            inference_options=ci.InferenceOptions(num_results=10))
         self.assertEqual(data.shape[0], impact.series.shape[0])
         self.check_all_functions(impact)
 
@@ -828,625 +847,6 @@ class TestPreAndPostPeriod(_CausalImpactBaseTest):
             ])]).all(
                 # Reduce across both axes.
                 axis=None))
-
-
-class TestNumericImpactValues(_CausalImpactBaseTest):
-
-    def testNumericImpactValues(self,
-                                dtype=tf.float32):
-        """Test for numeric values of fit_causal_impact().
-
-        This test uses simulated data with a large treatment effect and a large
-        number of posterior samples to check that the numeric values of the estimated
-        effects and their uncertainty intervals are close to what we'd expect.
-
-        Args:
-          dtype: The dtype to use throughout computation.
-        """
-        n_time_steps = 100
-        treat_start = 50
-        true_effect = 5.0
-        y = np.random.normal(size=n_time_steps, scale=0.0001)
-        y[treat_start:] += true_effect
-        # TODO: Add a version of this test that does not standardize
-        # data and by adding (say) 100 to `y`, then asserting that
-        # `impact.series["posterior_lower"] < y[t]`, and that
-        # `y[t] < impact.series["posterior_upper"]``
-        date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
-        test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype))
-        summary = impact.summary
-        # The true absolute effects, as average and sum over post period.
-        true_abs_effects = (true_effect, true_effect * (n_time_steps - treat_start))
-        np.testing.assert_allclose(
-            summary["absolute_effect"], true_abs_effects, rtol=0.001, atol=0.001)
-
-        # See that interval widths (relative to absolute effects) are about 0.
-        relative_interval_widths = (
-                (summary["absolute_effect_upper"] - summary["absolute_effect_lower"]) /
-                summary["absolute_effect"])
-        self.assertLessEqual(relative_interval_widths["average"], 0.01)
-        self.assertLessEqual(relative_interval_widths["cumulative"], 0.01)
-
-
-class TestNumericImpactValuesWithSeasonality(_CausalImpactBaseTest):
-
-    def testNumericImpactValuesWithSeasonality(self):
-        """Verifies that seasonality assists with inference.
-
-        This is not intended to do a detailed analysis of the inference, just that
-        there is difference when seasonal effects are modeled when the data
-        does have a true underlying effect.
-        """
-        dtype = tf.float32
-        n_time_steps = 300
-        treat_start = 290
-        true_effect = 2.5
-        every_five_effect = [
-            [8., 8., 4., 3., -4.][x % 5] for x in range(n_time_steps)
-        ]
-        every_seven_effect = [
-            10 * [1., 4., 5., 2., -1., -2., -3.][x % 7] for x in range(n_time_steps)
-        ]
-        every_eight_effect = [
-            [1., 1., 3., 3., 4.5, 2.0, -7., 0.][x % 8] for x in range(n_time_steps)
-        ]
-        y = (
-                np.random.normal(size=n_time_steps, scale=0.4) + every_seven_effect +
-                every_five_effect + every_eight_effect)
-
-        y[treat_start:] += true_effect
-        date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
-        test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact_without_season = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype))
-
-        impact_with_season = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype),
-            model_options=ci.ModelOptions(seasonal_effects=[
-                SeasonalEffect(
-                    num_periods=4,
-                    steps_per_period=2
-                ),
-                SeasonalEffect(num_periods=7),
-                SeasonalEffect(
-                    num_periods=6,
-                    steps_per_period=((2, 2, 1, 1, 1, 1),)
-                )
-            ]))
-
-        # Estimates of the absolute effect will be very wide when seasonality
-        # is not modeled, since the variance is unexplained. When the seasonality
-        # is modeled, the estimates will be much tighter.
-        self.assertAlmostEqual(
-            9.5,
-            impact_without_season.summary["absolute_effect_sd"]["average"],
-            delta=1.0)
-        self.assertAlmostEqual(
-            0.5, impact_with_season.summary["absolute_effect_sd"]["average"], delta=0.1)
-
-
-class TestDataFormats(_CausalImpactBaseTest):
-
-    def test_missing_input(self):
-        with self.assertRaises(TypeError):
-            ci.fit_causal_impact()
-
-    def test_healthy_input(self):
-        data = pd.DataFrame({
-            "y": np.random.randn(200),
-            "x1": np.random.randn(200),
-            "x2": np.random.randn(200)
-        })
-        impact = ci.fit_causal_impact(
-            data,
-            pre_period=(0, 100),
-            post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
-        self.assertEqual(data.shape[0], impact.series.shape[0])
-        self.check_all_functions(impact)
-
-
-class TestPreAndPostPeriod(_CausalImpactBaseTest):
-
-    def test_missing_pre_period_input(self):
-        data = pd.DataFrame({
-            "y": np.random.randn(200),
-            "x1": np.random.randn(200),
-            "x2": np.random.randn(200)
-        })
-        data.y.iloc[2:5] = np.nan
-        impact = ci.fit_causal_impact(
-            data,
-            pre_period=(0, 100),
-            post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
-        self.assertEqual(data.shape[0], impact.series.shape[0])
-        self.check_all_functions(impact)
-
-        # Verify that the indices that have NaN outputs have NaN for everything
-        # other than point predictions.
-        self.assertTrue(
-            np.isnan(impact.series.iloc[2:5][impact.series.columns.difference([
-                "observed",
-                "posterior_mean",
-                "posterior_lower",
-                "posterior_upper",
-                "time",
-                "pre_period_start",
-                "pre_period_end",
-                "post_period_start",
-                "post_period_end",
-            ])]).all(
-                # Reduce across both axes.
-                axis=None))
-
-
-class TestNumericImpactValues(_CausalImpactBaseTest):
-
-    def testNumericImpactValues(self,
-                                dtype=tf.float32):
-        """Test for numeric values of fit_causal_impact().
-
-        This test uses simulated data with a large treatment effect and a large
-        number of posterior samples to check that the numeric values of the estimated
-        effects and their uncertainty intervals are close to what we'd expect.
-
-        Args:
-          dtype: The dtype to use throughout computation.
-        """
-        n_time_steps = 100
-        treat_start = 50
-        true_effect = 5.0
-        y = np.random.normal(size=n_time_steps, scale=0.0001)
-        y[treat_start:] += true_effect
-        # TODO: Add a version of this test that does not standardize
-        # data and by adding (say) 100 to `y`, then asserting that
-        # `impact.series["posterior_lower"] < y[t]`, and that
-        # `y[t] < impact.series["posterior_upper"]``
-        date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
-        test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype))
-        summary = impact.summary
-        # The true absolute effects, as average and sum over post period.
-        true_abs_effects = (true_effect, true_effect * (n_time_steps - treat_start))
-        np.testing.assert_allclose(
-            summary["absolute_effect"], true_abs_effects, rtol=0.001, atol=0.001)
-
-        # See that interval widths (relative to absolute effects) are about 0.
-        relative_interval_widths = (
-                (summary["absolute_effect_upper"] - summary["absolute_effect_lower"]) /
-                summary["absolute_effect"])
-        self.assertLessEqual(relative_interval_widths["average"], 0.01)
-        self.assertLessEqual(relative_interval_widths["cumulative"], 0.01)
-
-
-class TestNumericImpactValuesWithSeasonality(_CausalImpactBaseTest):
-
-    def testNumericImpactValuesWithSeasonality(self):
-        """Verifies that seasonality assists with inference.
-
-        This is not intended to do a detailed analysis of the inference, just that
-        there is difference when seasonal effects are modeled when the data
-        does have a true underlying effect.
-        """
-        dtype = tf.float32
-        n_time_steps = 300
-        treat_start = 290
-        true_effect = 2.5
-        every_five_effect = [
-            [8., 8., 4., 3., -4.][x % 5] for x in range(n_time_steps)
-        ]
-        every_seven_effect = [
-            10 * [1., 4., 5., 2., -1., -2., -3.][x % 7] for x in range(n_time_steps)
-        ]
-        every_eight_effect = [
-            [1., 1., 3., 3., 4.5, 2.0, -7., 0.][x % 8] for x in range(n_time_steps)
-        ]
-        y = (
-                np.random.normal(size=n_time_steps, scale=0.4) + every_seven_effect +
-                every_five_effect + every_eight_effect)
-
-        y[treat_start:] += true_effect
-        date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
-        test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact_without_season = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype))
-
-        impact_with_season = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype),
-            model_options=ci.ModelOptions(seasonal_effects=[
-                SeasonalEffect(
-                    num_periods=4,
-                    steps_per_period=2
-                ),
-                SeasonalEffect(num_periods=7),
-                SeasonalEffect(
-                    num_periods=6,
-                    steps_per_period=((2, 2, 1, 1, 1, 1),)
-                )
-            ]))
-
-        # Estimates of the absolute effect will be very wide when seasonality
-        # is not modeled, since the variance is unexplained. When the seasonality
-        # is modeled, the estimates will be much tighter.
-        self.assertAlmostEqual(
-            9.5,
-            impact_without_season.summary["absolute_effect_sd"]["average"],
-            delta=1.0)
-        self.assertAlmostEqual(
-            0.5, impact_with_season.summary["absolute_effect_sd"]["average"], delta=0.1)
-
-
-class TestDataFormats(_CausalImpactBaseTest):
-
-    def test_missing_input(self):
-        with self.assertRaises(TypeError):
-            ci.fit_causal_impact()
-
-    def test_healthy_input(self):
-        data = pd.DataFrame({
-            "y": np.random.randn(200),
-            "x1": np.random.randn(200),
-            "x2": np.random.randn(200)
-        })
-        impact = ci.fit_causal_impact(
-            data,
-            pre_period=(0, 100),
-            post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
-        self.assertEqual(data.shape[0], impact.series.shape[0])
-        self.check_all_functions(impact)
-
-
-class TestPreAndPostPeriod(_CausalImpactBaseTest):
-
-    def test_missing_pre_period_input(self):
-        data = pd.DataFrame({
-            "y": np.random.randn(200),
-            "x1": np.random.randn(200),
-            "x2": np.random.randn(200)
-        })
-        data.y.iloc[2:5] = np.nan
-        impact = ci.fit_causal_impact(
-            data,
-            pre_period=(0, 100),
-            post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
-        self.assertEqual(data.shape[0], impact.series.shape[0])
-        self.check_all_functions(impact)
-
-        # Verify that the indices that have NaN outputs have NaN for everything
-        # other than point predictions.
-        self.assertTrue(
-            np.isnan(impact.series.iloc[2:5][impact.series.columns.difference([
-                "observed",
-                "posterior_mean",
-                "posterior_lower",
-                "posterior_upper",
-                "time",
-                "pre_period_start",
-                "pre_period_end",
-                "post_period_start",
-                "post_period_end",
-            ])]).all(
-                # Reduce across both axes.
-                axis=None))
-
-
-class TestNumericImpactValues(_CausalImpactBaseTest):
-
-    def testNumericImpactValues(self,
-                                dtype=tf.float32):
-        """Test for numeric values of fit_causal_impact().
-
-        This test uses simulated data with a large treatment effect and a large
-        number of posterior samples to check that the numeric values of the estimated
-        effects and their uncertainty intervals are close to what we'd expect.
-
-        Args:
-          dtype: The dtype to use throughout computation.
-        """
-        n_time_steps = 100
-        treat_start = 50
-        true_effect = 5.0
-        y = np.random.normal(size=n_time_steps, scale=0.0001)
-        y[treat_start:] += true_effect
-        # TODO: Add a version of this test that does not standardize
-        # data and by adding (say) 100 to `y`, then asserting that
-        # `impact.series["posterior_lower"] < y[t]`, and that
-        # `y[t] < impact.series["posterior_upper"]``
-        date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
-        test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype))
-        summary = impact.summary
-        # The true absolute effects, as average and sum over post period.
-        true_abs_effects = (true_effect, true_effect * (n_time_steps - treat_start))
-        np.testing.assert_allclose(
-            summary["absolute_effect"], true_abs_effects, rtol=0.001, atol=0.001)
-
-        # See that interval widths (relative to absolute effects) are about 0.
-        relative_interval_widths = (
-                (summary["absolute_effect_upper"] - summary["absolute_effect_lower"]) /
-                summary["absolute_effect"])
-        self.assertLessEqual(relative_interval_widths["average"], 0.01)
-        self.assertLessEqual(relative_interval_widths["cumulative"], 0.01)
-
-
-class TestNumericImpactValuesWithSeasonality(_CausalImpactBaseTest):
-
-    def testNumericImpactValuesWithSeasonality(self):
-        """Verifies that seasonality assists with inference.
-
-        This is not intended to do a detailed analysis of the inference, just that
-        there is difference when seasonal effects are modeled when the data
-        does have a true underlying effect.
-        """
-        dtype = tf.float32
-        n_time_steps = 300
-        treat_start = 290
-        true_effect = 2.5
-        every_five_effect = [
-            [8., 8., 4., 3., -4.][x % 5] for x in range(n_time_steps)
-        ]
-        every_seven_effect = [
-            10 * [1., 4., 5., 2., -1., -2., -3.][x % 7] for x in range(n_time_steps)
-        ]
-        every_eight_effect = [
-            [1., 1., 3., 3., 4.5, 2.0, -7., 0.][x % 8] for x in range(n_time_steps)
-        ]
-        y = (
-                np.random.normal(size=n_time_steps, scale=0.4) + every_seven_effect +
-                every_five_effect + every_eight_effect)
-
-        y[treat_start:] += true_effect
-        date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
-        test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact_without_season = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype))
-
-        impact_with_season = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype),
-            model_options=ci.ModelOptions(seasonal_effects=[
-                SeasonalEffect(
-                    num_periods=4,
-                    steps_per_period=2
-                ),
-                SeasonalEffect(num_periods=7),
-                SeasonalEffect(
-                    num_periods=6,
-                    steps_per_period=((2, 2, 1, 1, 1, 1),)
-                )
-            ]))
-
-        # Estimates of the absolute effect will be very wide when seasonality
-        # is not modeled, since the variance is unexplained. When the seasonality
-        # is modeled, the estimates will be much tighter.
-        self.assertAlmostEqual(
-            9.5,
-            impact_without_season.summary["absolute_effect_sd"]["average"],
-            delta=1.0)
-        self.assertAlmostEqual(
-            0.5, impact_with_season.summary["absolute_effect_sd"]["average"], delta=0.1)
-
-
-class _CausalImpactBaseTest(absltest.TestCase):
-
-    def check_all_functions(self, impact):
-        self.assertIn("Posterior Inference", ci.summary(impact))
-        self.assertIn("Posterior Inference",
-                      ci.summary(impact, output_format="summary"))
-        self.assertIn("Analysis report", ci.summary(impact, output_format="report"))
-        self.assertIn("Posterior Inference", ci.summary(impact, "summary"))
-        self.assertIn("Analysis report", ci.summary(impact, "report"))
-        with self.assertRaises(ValueError):
-            ci.summary(impact, output_format="foo")
-
-        self.assertIsNotNone(ci.plot(impact))
-
-
-class TestDataFormats(_CausalImpactBaseTest):
-
-    def test_missing_input(self):
-        with self.assertRaises(TypeError):
-            ci.fit_causal_impact()
-
-    def test_healthy_input(self):
-        data = pd.DataFrame({
-            "y": np.random.randn(200),
-            "x1": np.random.randn(200),
-            "x2": np.random.randn(200)
-        })
-        impact = ci.fit_causal_impact(
-            data,
-            pre_period=(0, 100),
-            post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
-        self.assertEqual(data.shape[0], impact.series.shape[0])
-        self.check_all_functions(impact)
-
-
-class TestPreAndPostPeriod(_CausalImpactBaseTest):
-
-    def test_missing_pre_period_input(self):
-        data = pd.DataFrame({
-            "y": np.random.randn(200),
-            "x1": np.random.randn(200),
-            "x2": np.random.randn(200)
-        })
-        data.y.iloc[2:5] = np.nan
-        impact = ci.fit_causal_impact(
-            data,
-            pre_period=(0, 100),
-            post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_posterior_samples=10))
-        self.assertEqual(data.shape[0], impact.series.shape[0])
-        self.check_all_functions(impact)
-
-        # Verify that the indices that have NaN outputs have NaN for everything
-        # other than point predictions.
-        self.assertTrue(
-            np.isnan(impact.series.iloc[2:5][impact.series.columns.difference([
-                "observed",
-                "posterior_mean",
-                "posterior_lower",
-                "posterior_upper",
-                "time",
-                "pre_period_start",
-                "pre_period_end",
-                "post_period_start",
-                "post_period_end",
-            ])]).all(
-                # Reduce across both axes.
-                axis=None))
-
-
-class TestNumericImpactValues(_CausalImpactBaseTest):
-
-    def testNumericImpactValues(self,
-                                dtype=tf.float32):
-        """Test for numeric values of fit_causal_impact().
-
-        This test uses simulated data with a large treatment effect and a large
-        number of posterior samples to check that the numeric values of the estimated
-        effects and their uncertainty intervals are close to what we'd expect.
-
-        Args:
-          dtype: The dtype to use throughout computation.
-        """
-        n_time_steps = 100
-        treat_start = 50
-        true_effect = 5.0
-        y = np.random.normal(size=n_time_steps, scale=0.0001)
-        y[treat_start:] += true_effect
-        # TODO: Add a version of this test that does not standardize
-        # data and by adding (say) 100 to `y`, then asserting that
-        # `impact.series["posterior_lower"] < y[t]`, and that
-        # `y[t] < impact.series["posterior_upper"]``
-        date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
-        test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype))
-        summary = impact.summary
-        # The true absolute effects, as average and sum over post period.
-        true_abs_effects = (true_effect, true_effect * (n_time_steps - treat_start))
-        np.testing.assert_allclose(
-            summary["absolute_effect"], true_abs_effects, rtol=0.001, atol=0.001)
-
-        # See that interval widths (relative to absolute effects) are about 0.
-        relative_interval_widths = (
-                (summary["absolute_effect_upper"] - summary["absolute_effect_lower"]) /
-                summary["absolute_effect"])
-        self.assertLessEqual(relative_interval_widths["average"], 0.01)
-        self.assertLessEqual(relative_interval_widths["cumulative"], 0.01)
-
-
-class TestNumericImpactValuesWithSeasonality(_CausalImpactBaseTest):
-
-    def testNumericImpactValuesWithSeasonality(self):
-        """Verifies that seasonality assists with inference.
-
-        This is not intended to do a detailed analysis of the inference, just that
-        there is difference when seasonal effects are modeled when the data
-        does have a true underlying effect.
-        """
-        dtype = tf.float32
-        n_time_steps = 300
-        treat_start = 290
-        true_effect = 2.5
-        every_five_effect = [
-            [8., 8., 4., 3., -4.][x % 5] for x in range(n_time_steps)
-        ]
-        every_seven_effect = [
-            10 * [1., 4., 5., 2., -1., -2., -3.][x % 7] for x in range(n_time_steps)
-        ]
-        every_eight_effect = [
-            [1., 1., 3., 3., 4.5, 2.0, -7., 0.][x % 8] for x in range(n_time_steps)
-        ]
-        y = (
-                np.random.normal(size=n_time_steps, scale=0.4) + every_seven_effect +
-                every_five_effect + every_eight_effect)
-
-        y[treat_start:] += true_effect
-        date_index = pd.date_range("2018-01-01", periods=n_time_steps, freq="D")
-        test_data = pd.DataFrame({"y": y}, index=date_index)
-        impact_without_season = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype))
-
-        impact_with_season = ci.fit_causal_impact(
-            test_data,
-            pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
-            post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_posterior_samples=1000),
-            data_options=ci.DataOptions(dtype=dtype),
-            model_options=ci.ModelOptions(seasonal_effects=[
-                SeasonalEffect(
-                    num_periods=4,
-                    steps_per_period=2
-                ),
-                SeasonalEffect(num_periods=7),
-                SeasonalEffect(
-                    num_periods=6,
-                    steps_per_period=((2, 2, 1, 1, 1, 1),)
-                )
-            ]))
-
-        # Estimates of the absolute effect will be very wide when seasonality
-        # is not modeled, since the variance is unexplained. When the seasonality
-        # is modeled, the estimates will be much tighter.
-        self.assertAlmostEqual(
-            9.5,
-            impact_without_season.summary["absolute_effect_sd"]["average"],
-            delta=1.0)
-        self.assertAlmostEqual(
-            0.5, impact_with_season.summary["absolute_effect_sd"]["average"], delta=0.1)
 
 
 if __name__ == "__main__":
