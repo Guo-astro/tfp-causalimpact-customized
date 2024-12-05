@@ -3,7 +3,7 @@
 ## Features
 
 - Rebuilt of [TFP CausalImpact](https://github.com/google/tfp-causalimpact)
-
+### Improved summary round to 3 digits
 ### Matplotlib Japanese Support
 
 - Added support for Japanese fonts and characters in Matplotlib plots.

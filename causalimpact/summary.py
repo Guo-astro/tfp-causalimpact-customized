@@ -23,12 +23,12 @@ summary_text = """
 {% macro add_remaining_spaces(n) %}{{' ' * (19 -n)}}{% endmacro -%}
 Posterior Inference {CausalImpact}
                           Average            Cumulative
-Actual                    {{summary.average.actual | round(1)}}{{add_remaining_spaces(summary.average.actual | round(1) | string | length)}}{{summary.cumulative.actual | round(1)}}
-Prediction (s.d.)         {{summary.average.predicted | round(1)}} ({{summary.average.predicted_sd | round(2)}}){{add_remaining_spaces(summary.average.predicted | round(1) | string | length + 3 + summary.average.predicted_sd | round(2) | string | length)}}{{summary.cumulative.predicted | round(1)}} ({{summary.cumulative.predicted_sd | round(2)}})
-{{CI(alpha)}}                    [{{summary.average.predicted_lower | round(1)}}, {{summary.average.predicted_upper | round(1)}}]{{add_remaining_spaces(4 + summary.average.predicted_lower | round(1) | string | length + summary.average.predicted_upper | round(1) | string | length)}}[{{summary.cumulative.predicted_lower | round(1)}}, {{summary.cumulative.predicted_upper | round(1)}}]
+Actual                    {{summary.average.actual | round(3)}}{{add_remaining_spaces(summary.average.actual | round(3) | string | length)}}{{summary.cumulative.actual | round(3)}}
+Prediction (s.d.)         {{summary.average.predicted | round(3)}} ({{summary.average.predicted_sd | round(2)}}){{add_remaining_spaces(summary.average.predicted | round(3) | string | length + 3 + summary.average.predicted_sd | round(2) | string | length)}}{{summary.cumulative.predicted | round(3)}} ({{summary.cumulative.predicted_sd | round(2)}})
+{{CI(alpha)}}                    [{{summary.average.predicted_lower | round(3)}}, {{summary.average.predicted_upper | round(3)}}]{{add_remaining_spaces(4 + summary.average.predicted_lower | round(3) | string | length + summary.average.predicted_upper | round(3) | string | length)}}[{{summary.cumulative.predicted_lower | round(3)}}, {{summary.cumulative.predicted_upper | round(3)}}]
 
-Absolute effect (s.d.)    {{summary.average.abs_effect | round(1)}} ({{summary.average.abs_effect_sd | round(2)}}){{add_remaining_spaces(3 + summary.average.abs_effect | round(1) | string | length + summary.average.abs_effect_sd | round(2) | string | length)}}{{summary.cumulative.abs_effect | round(1)}} ({{summary.cumulative.abs_effect_sd | round(2)}})
-{{CI(alpha)}}                    {{[summary.average.abs_effect_lower | round(1), summary.average.abs_effect_upper | round(1)] | sort}}{{add_remaining_spaces(4 + summary.average.abs_effect_lower | round(1) | string | length + summary.average.abs_effect_upper | round(1) | string | length)}}{{[summary.cumulative.abs_effect_lower | round(1), summary.cumulative.abs_effect_upper | round(1)] | sort}}
+Absolute effect (s.d.)    {{summary.average.abs_effect | round(3)}} ({{summary.average.abs_effect_sd | round(2)}}){{add_remaining_spaces(3 + summary.average.abs_effect | round(3) | string | length + summary.average.abs_effect_sd | round(2) | string | length)}}{{summary.cumulative.abs_effect | round(3)}} ({{summary.cumulative.abs_effect_sd | round(2)}})
+{{CI(alpha)}}                    {{[summary.average.abs_effect_lower | round(3), summary.average.abs_effect_upper | round(3)] | sort}}{{add_remaining_spaces(4 + summary.average.abs_effect_lower | round(3) | string | length + summary.average.abs_effect_upper | round(3) | string | length)}}{{[summary.cumulative.abs_effect_lower | round(3), summary.cumulative.abs_effect_upper | round(3)] | sort}}
 
 Relative effect (s.d.)    {{'{0:.1%}'.format(summary.average.rel_effect)}} ({{'{0:.1%}'.format(summary.average.rel_effect_sd|float)}}){{add_remaining_spaces(3 + '{0:.1%}'.format(summary.average.rel_effect) | length + '{0:.1%}'.format(summary.average.rel_effect_sd|float)| string | length)}}{{'{0:.1%}'.format(summary.cumulative.rel_effect)}} ({{'{0:.1%}'.format(summary.cumulative.rel_effect_sd | round(2)|float)}})
 {{CI(alpha)}}                    [{{'{0:.1%}'.format([summary.average.rel_effect_lower, summary.average.rel_effect_upper]|min)}}, {{'{0:.1%}'.format([summary.average.rel_effect_upper, summary.average.rel_effect_lower]|max)}}]{{add_remaining_spaces(4 + '{0:.1%}'.format([summary.average.rel_effect_lower, summary.average.rel_effect_upper]|min)|length + '{0:.1%}'.format([summary.average.rel_effect_upper, summary.average.rel_effect_lower]|max)|length)}}[{{'{0:.1%}'.format([summary.cumulative.rel_effect_lower, summary.cumulative.rel_effect_upper]|min)}}, {{'{0:.1%}'.format([summary.cumulative.rel_effect_upper, summary.cumulative.rel_effect_lower]|max)}}]
@@ -47,21 +47,21 @@ Analysis report {CausalImpact}
 
 
 During the post-intervention period, the response variable had
-an average value of approx. {{summary.average.actual | round(1)}}. {% if detected_sig -%}By contrast, in{% else %}In{% endif %} the absence of an
-intervention, we would have expected an average response of {{summary.average.predicted | round(1)}}.
-The {{CI(alpha)}} interval of this counterfactual prediction is [{{summary.average.predicted_lower | round(1)}}, {{summary.average.predicted_upper | round(1)}}].
+an average value of approx. {{summary.average.actual | round(3)}}. {% if detected_sig -%}By contrast, in{% else %}In{% endif %} the absence of an
+intervention, we would have expected an average response of {{summary.average.predicted | round(3)}}.
+The {{CI(alpha)}} interval of this counterfactual prediction is [{{summary.average.predicted_lower | round(3)}}, {{summary.average.predicted_upper | round(3)}}].
 Subtracting this prediction from the observed response yields
 an estimate of the causal effect the intervention had on the
-response variable. This effect is {{summary.average.abs_effect | round(1)}} with a {{CI(alpha)}} interval of
-{{[summary.average.abs_effect_lower | round(1), summary.average.abs_effect_upper | round(1)] | sort}}. For a discussion of the significance of this effect,
+response variable. This effect is {{summary.average.abs_effect | round(3)}} with a {{CI(alpha)}} interval of
+{{[summary.average.abs_effect_lower | round(3), summary.average.abs_effect_upper | round(3)] | sort}}. For a discussion of the significance of this effect,
 see below.
 
 
 Summing up the individual data points during the post-intervention
 period (which can only sometimes be meaningfully interpreted), the
-response variable had an overall value of {{summary.cumulative.actual | round(1)}}.
+response variable had an overall value of {{summary.cumulative.actual | round(3)}}.
 {% if detected_sig %}By contrast, had{% else %}Had{% endif %} the intervention not taken place, we would have expected
-a sum of {{summary.cumulative.predicted| round(1)}}. The {{CI(alpha)}} interval of this prediction is {{[summary.cumulative.predicted_lower | round(1), summary.cumulative.predicted_upper | round(1)]|sort}}.
+a sum of {{summary.cumulative.predicted| round(3)}}. The {{CI(alpha)}} interval of this prediction is {{[summary.cumulative.predicted_lower | round(3), summary.cumulative.predicted_upper | round(3)]|sort}}.
 
 
 The above results are given in terms of absolute numbers. In relative
@@ -73,7 +73,7 @@ This means that the positive effect observed during the intervention
 period is statistically significant and unlikely to be due to random
 fluctuations. It should be noted, however, that the question of whether
 this increase also bears substantive significance can only be answered
-by comparing the absolute effect ({{summary.average.abs_effect | round(1)}}) to the original goal
+by comparing the absolute effect ({{summary.average.abs_effect | round(3)}}) to the original goal
 of the underlying intervention.
 {% elif detected_sig and not positive_sig %}
 
