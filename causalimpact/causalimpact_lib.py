@@ -1,59 +1,3 @@
-# __init__.py
-
-"""
-Chapter: Gibbs Sampling and Its Usage in TensorFlow Probability
----------------------------------------------------------------
-
-Gibbs sampling is a Markov chain Monte Carlo (MCMC) method widely used for Bayesian inference.
-It is particularly effective when direct sampling from a complex joint distribution is not feasible,
-but sampling from the conditional distributions of the parameters is straightforward.
-
-**Key Concept:**
-
-Given parameters :math:`\theta = (\theta_1, \theta_2, \ldots, \theta_k)`,
-we want to sample from the joint posterior :math:`p(\theta \mid y)`. Gibbs sampling iterates
-over parameters and draws each one from its conditional distribution given the others:
-
-.. math::
-
-   \theta_1^{(t+1)} \sim p(\theta_1 \mid \theta_2^{(t)}, \ldots, \theta_k^{(t)}, y)
-
-.. math::
-
-   \theta_2^{(t+1)} \sim p(\theta_2 \mid \theta_1^{(t+1)}, \theta_3^{(t)}, \ldots, y)
-
-And so forth, until all parameters are updated. After a burn-in period, these samples approximate
-the joint posterior distribution.
-
-**Advantages:**
-- Conceptually simple if conditional distributions are known.
-- Flexible, works for a range of hierarchical Bayesian models.
-
-**Challenges:**
-- Convergence may be slow if parameters are highly correlated.
-- Requires that conditional distributions be easily sampled.
-
-**In TensorFlow Probability (TFP):**
-TensorFlow Probability offers powerful abstractions for probabilistic modeling and inference.
-While advanced MCMC methods like Hamiltonian Monte Carlo are often efficient, Gibbs sampling
-remains a useful technique for certain models, especially within the `tfp.sts` framework where
-conditional distributions are well-defined.
-
-By using `tfp.experimental.sts_gibbs.gibbs_sampler`, you can:
-1. Define a structural time series (STS) model.
-2. Identify conditional distributions of parameters.
-3. Let the Gibbs sampler iteratively draw parameters from their conditionals.
-
-This approach integrates smoothly with the STS paradigm and leverages TFP's ability to handle
-complex Bayesian models on modern hardware.
-
-
-===============================================================================
-Below is a refactored CausalImpact code example with docstrings suitable for Sphinx,
-including LaTeX math and integration with the Gibbs sampling concept.
-===============================================================================
-"""
-
 # Copyright 2019-2023 The TFP CausalImpact Authors
 # Copyright 2014 Google Inc.
 #
@@ -99,13 +43,13 @@ class CausalImpactPosteriorSamples:
     Attributes
     ----------
     observation_noise_scale : tf.Tensor
-        Samples of the observation noise scale, :math:`\sigma_\varepsilon`.
+        Samples of the observation noise scale, $\sigma_{\varepsilon}$.
     level_scale : Optional[tf.Tensor]
         Samples of the local level's scale parameter.
     level : Optional[tf.Tensor]
-        Samples of the local level state :math:`\ell_t`.
+        Samples of the local level state $\ell_t$.
     weights : Optional[tf.Tensor]
-        Samples of regression coefficients :math:`\beta`.
+        Samples of regression coefficients $\beta$.
     seasonal_drift_scales : Optional[tf.Tensor]
         Samples of seasonal drift scales.
     seasonal_levels : Optional[tf.Tensor]
@@ -129,17 +73,18 @@ class CausalImpactAnalysis:
     series : pd.DataFrame
         Time-indexed DataFrame with:
 
-        - observed: :math:`y_t`
-        - posterior_mean: :math:`\hat{y}_t` (posterior mean prediction)
-        - posterior_lower, posterior_upper: Credible interval bounds for :math:`\hat{y}_t`.
-        - point_effects_mean, point_effects_lower, point_effects_upper: Mean and CI for point effects :math:`y_t - \hat{y}_t`.
-        - cumulative_effects_mean, cumulative_effects_lower, cumulative_effects_upper: Mean and CI for cumulative effects.
+        - observed: $`y_t`$
+        - `posterior_mean`: $\hat{y}_t$ (posterior mean prediction)
+        - `posterior_lower`, `posterior_upper`: Credible interval bounds for $\hat{y}_t$.
+        - `point_effects_mean`, `point_effects_lower`, `point_effects_upper`: Mean and CI for point effects $y_t - \hat{y}_t$.
+        - `cumulative_effects_mean`, `cumulative_effects_lower`, `cumulative_effects_upper`: Mean and CI for cumulative effects.
 
     summary : pd.DataFrame
         Summary over the post-intervention period, including:
-        - actual vs predicted outcomes
-        - absolute and relative effects
+        - Actual vs predicted outcomes
+        - Absolute and relative effects
         - p-values
+
     posterior_samples : CausalImpactPosteriorSamples
         Posterior samples of latent variables and parameters.
     """
@@ -156,9 +101,9 @@ class DataOptions:
     Attributes
     ----------
     outcome_column : Optional[str]
-        Name of the column in `data` containing :math:`y_t`.
+        Name of the column in `data` containing $`y_t`$.
     standardize_data : bool
-        Whether to standardize :math:`y_t` and covariates.
+        Whether to standardize $y_t$ and covariates.
     dtype : tf.dtypes.DType
         Data type for computations.
     """
@@ -177,7 +122,7 @@ class Seasons:
     num_seasons : int
         Number of seasons in the cycle.
     num_steps_per_season : Union[int, Tuple[int], Tuple[Tuple[int]]]
-        Steps within each season. Can be a single integer or a tuple for more complex seasonal patterns.
+        Steps within each season. Can be a single integer or a tuple for complex patterns.
     """
     num_seasons: int
     num_steps_per_season: Union[int, Tuple[int], Tuple[Tuple[int]]] = 1
@@ -232,16 +177,16 @@ def fit_causalimpact(data: pd.DataFrame,
     r"""
     Fit the CausalImpact model and compute posterior effects.
 
-    This function:
-    1. Processes data, identifying pre/post intervention periods.
-    2. Fits an STS model using MCMC (Gibbs sampling) on pre-period data.
-    3. Obtains posterior predictions :math:`\hat{y}_t` over the full period.
-    4. Computes point effects :math:`y_t - \hat{y}_t` and cumulative effects.
+    Steps:
+    1. Process data, identify pre/post intervention periods.
+    2. Fit an STS model using MCMC (Gibbs sampling) on pre-period data.
+    3. Obtain posterior predictions $\hat{y}_t$ over the full period.
+    4. Compute point effects $y_t - \hat{y}_t$ and cumulative effects.
 
     Parameters
     ----------
     data : pd.DataFrame
-        DataFrame with the outcome time series \(y_t\) and optionally covariates.
+        DataFrame with the outcome time series $y_t$ and optionally covariates.
     pre_period : tuple
         (start, end) of the pre-intervention period.
     post_period : tuple
@@ -262,7 +207,7 @@ def fit_causalimpact(data: pd.DataFrame,
     Returns
     -------
     CausalImpactAnalysis
-        The analysis results, including posterior samples and effect estimates.
+        Analysis results, including posterior samples and effect estimates.
     """
     tf_log_level = tf.get_logger().level
     tf.get_logger().setLevel(logging.ERROR)
@@ -349,7 +294,7 @@ def _run_gibbs_sampler(
     r"""
     Run Gibbs sampling for STS parameters and states.
 
-    Given a structural time series model and observed data (with possibly missing values),
+    Given a structural time series model and observed data (with possible missing values),
     this function draws samples from the posterior distribution over parameters and latent states
     using Gibbs sampling.
 
@@ -358,7 +303,7 @@ def _run_gibbs_sampler(
     sts_model : tfp.sts.StructuralTimeSeries, optional
         The STS model. If None, a default model is constructed.
     outcome_ts : TensorLike
-        Time series of \(y_t\), possibly with NaNs for post-intervention.
+        Time series of $y_t$, possibly with NaNs for post-intervention.
     outcome_sd : TensorLike
         Standard deviation of the pre-intervention data, used to scale priors.
     design_matrix : Optional[TensorLike]
@@ -368,7 +313,7 @@ def _run_gibbs_sampler(
     num_warmup_steps : int
         Warmup (burn-in) steps before collecting samples.
     observation_noise_scale : TensorLike
-        Initial guess for observation noise scale \(\sigma_\varepsilon\).
+        Initial guess for observation noise scale $\sigma_{\varepsilon}$.
     level_scale : TensorLike
         Prior scale for the local level component.
     seasonal_drift_scales : TensorLike
@@ -393,9 +338,9 @@ def _run_gibbs_sampler(
     posterior_samples : gibbs_sampler.GibbsSamplerState
         Samples of parameters and states.
     posterior_means : tf.Tensor
-        Posterior mean predictions \(\hat{y}_t\).
+        Posterior mean predictions $\hat{y}_t$.
     posterior_trajectories : tf.Tensor
-        Posterior predictive samples for \(\hat{y}_t\).
+        Posterior predictive samples for $\hat{y}_t$.
     """
     if not sts_model:
         sts_model = _build_default_gibbs_model(
@@ -446,10 +391,10 @@ def _build_default_gibbs_model(
         dtype,
         seasons: List[Seasons],
 ):
-    r"""
+    """
     Construct a default STS model for Gibbs sampling.
 
-    This includes:
+    Includes:
     - A local level component with an InverseGamma prior on the level variance.
     - Optional regression using covariates (if provided).
     - Optional seasonal components.
@@ -556,9 +501,9 @@ def _train_causalimpact_sts(
     Train the STS model via Gibbs sampling and return posterior predictions.
 
     Steps:
-    - Extend :math:`y_t` into the post-period with NaNs.
+    - Extend $y_t$ into the post-period with NaNs.
     - Run Gibbs sampling to get posterior samples.
-    - Return posterior samples and \(\hat{y}_t\) predictions.
+    - Return posterior samples and $\hat{y}_t$ predictions.
 
     Parameters
     ----------
@@ -586,9 +531,9 @@ def _train_causalimpact_sts(
     posterior_samples : gibbs_sampler.GibbsSamplerState
         Posterior samples of parameters and states.
     y_hat_means : tf.Tensor
-        Posterior mean predictions \(\hat{y}_t\).
+        Posterior mean predictions $\hat{y}_t$.
     y_hat_samples : tf.Tensor
-        Posterior predictive samples of \(\hat{y}_t\).
+        Posterior predictive samples of $\hat{y}_t$.
     """
     if isinstance(seed, int):
         seed = (0, seed)
@@ -649,7 +594,7 @@ def _train_causalimpact_sts(
 
 def _get_posterior_means_and_trajectories(sts_model, posterior_samples, seed):
     r"""
-    Extract posterior mean and trajectory samples of \(\hat{y}_t\).
+    Extract posterior mean and trajectory samples of $\hat{y}_t$.
 
     Parameters
     ----------
@@ -663,9 +608,9 @@ def _get_posterior_means_and_trajectories(sts_model, posterior_samples, seed):
     Returns
     -------
     y_hat_mean : tf.Tensor
-        Mean \(\hat{y}_t\) predictions.
+        Mean $\hat{y}_t$ predictions.
     y_hat_samples : tf.Tensor
-        Sampled trajectories of \(\hat{y}_t\).
+        Sampled trajectories of $\hat{y}_t$.
     """
     predictive_distributions = gibbs_sampler.one_step_predictive(
         sts_model,
@@ -687,17 +632,17 @@ def _compute_impact(
     r"""
     Compute time-series effects and summary statistics.
 
-    - Derive credible intervals for \(\hat{y}_t\).
-    - Compute point effects :math:`y_t - \hat{y}_t`.
+    - Derive credible intervals for $\hat{y}_t$.
+    - Compute point effects $y_t - \hat{y}_t$.
     - Compute cumulative effects.
     - Summarize results.
 
     Parameters
     ----------
     posterior_means : tf.Tensor
-        Posterior mean predictions of \(\hat{y}_t\).
+        Posterior mean predictions of $\hat{y}_t$.
     posterior_trajectories : tf.Tensor
-        Posterior predictive samples of \(\hat{y}_t\).
+        Posterior predictive samples of $\hat{y}_t$.
     ci_data : cid.CausalImpactData
         Data structure with pre/post intervention info.
     alpha : float
@@ -763,9 +708,9 @@ def _sample_posterior_predictive(
     Parameters
     ----------
     posterior_means : TensorLike
-        Posterior mean \(\hat{y}_t\).
+        Posterior mean $\hat{y}_t$.
     posterior_trajectories : TensorLike
-        Posterior samples of \(\hat{y}_t\).
+        Posterior samples of $\hat{y}_t$.
     ci_data : cid.CausalImpactData
         Data structure with full data info.
     quantiles : tuple
@@ -793,9 +738,9 @@ def _package_posterior_trajectories(
         posterior_trajectories: TensorLike,
         ci_data: cid.CausalImpactData) -> pd.DataFrame:
     r"""
-    Convert sampled \(\hat{y}_t\) trajectories into a DataFrame.
+    Convert sampled $\hat{y}_t$ trajectories into a DataFrame.
 
-    Columns are sample_1, sample_2, ...
+    Columns are `sample_1, sample_2, ...`
 
     Parameters
     ----------
@@ -820,18 +765,16 @@ def _compute_impact_trajectories(
     r"""
     Compute point and cumulative effect trajectories.
 
-    point_effects:
-    .. math::
-       y_t - \hat{y}_{t, \text{sample}}
+    Point effects:
+    $$y_t - \hat{y}_{t, \text{sample}}$$
 
-    cumulative_effects:
-    .. math::
-       \sum_{\tau=T_{\text{start}}}^{t} (y_\tau - \hat{y}_{\tau,\text{sample}})
+    Cumulative effects:
+    $$\sum_{\tau=T_{\text{start}}}^{t} (y_\tau - \hat{y}_{\tau,\text{sample}})$$
 
     Parameters
     ----------
     posterior_trajectories : pd.DataFrame
-        DataFrame of \(\hat{y}_t\) samples.
+        DataFrame of $\hat{y}_t$ samples.
     y_full : pd.Series
         Full observed data series.
     treatment_start : OutputDateType
@@ -862,13 +805,13 @@ def _compute_impact_estimates(posterior_trajectory_summary: pd.DataFrame,
     r"""
     Construct a time series DataFrame with effects and intervals.
 
-    - point_effects_mean: \(\mathbb{E}[y_t - \hat{y}_t]\)
-    - cumulative_effects_mean: Cumulative sum of point_effects_mean from treatment start.
+    - point_effects_mean: $E[y_t - \hat{y}_t]$
+    - cumulative_effects_mean: $\sum_{\tau=T_{\text{start}}}^{t} (y_\tau - \hat{y}_\tau)$
 
     Parameters
     ----------
     posterior_trajectory_summary : pd.DataFrame
-        Summary with posterior_mean and intervals of \(\hat{y}_t\).
+        Summary with posterior_mean and intervals of $\hat{y}_t$.
     trajectory_dict : dict
         Dict with "point_effects" and "cumulative_effects".
     observed_ts_full : pd.Series
@@ -937,15 +880,16 @@ def _compute_summary(posterior_trajectory_summary: pd.DataFrame,
                      quantiles: Tuple[float, float], alpha: float) -> pd.DataFrame:
     r"""
     Compute summary statistics over the post-period:
-    - Average and cumulative predicted :math:`\hat{y}_t`
-    - Absolute effects :math:`y_t - \hat{y}_t`
-    - Relative effects :math:`(y_t/\hat{y}_t - 1)`
+
+    - Average and cumulative predicted $\hat{y}_t$
+    - Absolute effects $y_t - \hat{y}_t$
+    - Relative effects $(y_t/\hat{y}_t - 1)$
     - p-value for extremeness of observed outcome
 
     Parameters
     ----------
     posterior_trajectory_summary : pd.DataFrame
-        Posterior mean and intervals of \(\hat{y}_t\).
+        Posterior mean and intervals of $\hat{y}_t$.
     trajectory_dict : dict
         Contains trajectories for "point_effects" and "cumulative_effects".
     observed_ts_post : pd.Series

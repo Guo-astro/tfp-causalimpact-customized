@@ -25,6 +25,10 @@ packages = ["causalimpact"]
 
 [dependency-groups]
 dev = [
-   "mkdocstrings-python",
-    "statsmodels>=0.14.4",
+   "markdown-katex>=202406.1035",
+   "mkdocs-material>=9.5.47",
+   "mkdocstrings>=0.27.0",
+   "pymdown-extensions>=10.12",
+   "python-markdown-math>=0.8",
+   "statsmodels>=0.14.4",
 ]
