@@ -2,6 +2,11 @@
 
 ## Features
 
+
+Highlighting Missing Post-Intervention Observations:
+
+In scenarios where no observed data exist for certain time points within the post-intervention period, the forecasted values are still computed by the model but cannot be validated against observed outcomes. To visually distinguish these points in the plots, we highlight them differently (e.g., using a dashed line and a separate color). This approach ensures that readers can easily identify which portions of the forecast are based purely on model inference (no ground-truth observations available) and which are directly comparable to actual observed data. This visual cue can be critical for interpreting the reliability and meaning of the estimated causal effects during periods with missing observations.
+
 - Rebuilt of [TFP CausalImpact](https://github.com/google/tfp-causalimpact)
 
 ### Improved summary round to 3 digits

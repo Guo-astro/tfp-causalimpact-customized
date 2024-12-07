@@ -27,87 +27,12 @@ import pandas as pd
 
 
 def _draw_matplotlib_plot(data_frame, **plot_options):
-    """
-    Generate a customized Matplotlib figure with three subplots: Observed vs. Mean,
-    Pointwise Effect, and Cumulative Effect. Each subplot can have its own y-axis
-    formatter unit and customized labels.
-
-    Parameters
-    ----------
-    data_frame : pd.DataFrame
-        The DataFrame containing the data to be plotted. Expected to include columns:
-        'time', 'scale', 'stat', 'value', 'lower', 'upper',
-        'pre_period_start', 'pre_period_end', 'post_period_start', 'post_period_end'.
-
-    plot_options : dict, optional
-        A dictionary of plotting options. Supported keys:
-
-        - chart_width (int): Width of the chart in pixels. Default is 800.
-        - chart_height (int): Height of the chart in pixels. Default is 600.
-        - xlabel (str): Label for the x-axis. Default is "Time".
-        - y_labels (list of str): Labels for the y-axes of the subplots.
-            Default is ["Observed", "Pointwise Effect", "Cumulative Effect"].
-        - title (str): Title for the entire figure. Default is None.
-        - title_font_size (int): Font size for the title. Default is 14.
-        - axis_label_font_size (int): Font size for axis labels. Default is 12.
-        - y_formatter (str, callable, list, or dict): Formatter for y-axis labels.
-            Options:
-                - 'millions': Formats y-axis in millions (e.g., 1M).
-                - 'thousands': Formats y-axis in thousands (e.g., 1K).
-                - callable: A custom formatter function.
-                - list/dict: Specify different formatters for each subplot.
-            Default is 'millions'.
-        - y_formatter_unit (str, list, or dict): Unit to append after formatted y-axis labels.
-            Options:
-                - Single string: Applies to all subplots.
-                - List: Specifies units per subplot in the order of y_labels.
-                - Dict: Specifies units per subplot by name.
-            Default is "dollar".
-        - legend_labels (dict): Custom labels for plot legends and period markers.
-            Keys:
-                - 'observed': Label for observed data in the first subplot.
-                  Default is "Observed".
-                - 'mean': Label for mean/predicted data in the first subplot.
-                  Default is "Mean".
-                - 'pointwise': Label for pointwise effect in the second subplot.
-                  Default is "Pointwise".
-                - 'cumulative': Label for cumulative effect in the third subplot.
-                  Default is "Cumulative".
-                - 'pre_period_start': Label for pre-period start marker.
-                  Default is "Pre-Period Start".
-                - 'pre_period_end': Label for pre-period end marker.
-                  Default is "Pre-Period End".
-                - 'post_period_start': Label for post-period start marker.
-                  Default is "Post-Period Start".
-                - 'post_period_end': Label for post-period end marker.
-                  Default is "Post-Period End".
-        - ... (additional plot parameters can be added as needed)
-
-    Returns
-    -------
-    matplotlib.figure.Figure
-        The generated Matplotlib figure object.
-    """
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import FuncFormatter
 
     # ----------------------------- Helper Functions -----------------------------
 
     def process_y_formatter_units(y_formatter_unit_options, subplot_labels):
-        """
-        Process the y_formatter_unit option to create a mapping of subplot labels
-        to their respective units.
-
-        Parameters
-        ----------
-        y_formatter_unit_options : str, list, or dict
-            The y_formatter_unit input provided by the user.
-        subplot_labels : list of str
-            The labels of the subplots.
-
-        Returns
-        -------
-        dict
-            A dictionary mapping each subplot label to its formatter unit.
-        """
         if isinstance(y_formatter_unit_options, str):
             return {label: y_formatter_unit_options for label in subplot_labels}
         elif isinstance(y_formatter_unit_options, list):
@@ -120,21 +45,6 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
             raise TypeError("y_formatter_unit must be a string, list, or dict.")
 
     def create_y_axis_formatter(format_option, unit):
-        """
-        Create a y-axis formatter function based on the format_option and unit.
-
-        Parameters
-        ----------
-        format_option : str or callable
-            The y_formatter option provided by the user.
-        unit : str
-            The unit to append to the formatted y-axis labels.
-
-        Returns
-        -------
-        function
-            A function that formats y-axis labels accordingly.
-        """
         if format_option == 'millions':
             return lambda x, pos: f'{x * 1e-6:.1f}{unit}'
         elif format_option == 'thousands':
@@ -142,28 +52,14 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         elif callable(format_option):
             return lambda x, pos: f'{format_option(x, pos)}{unit}'
         else:
-            # Default formatter without scaling
             return lambda x, pos: f'{x}{unit}'
 
     def add_period_markers(ax, df, labels):
-        """
-        Add vertical dashed lines to the subplot to mark pre-period and post-period intervals.
-
-        Parameters
-        ----------
-        ax : matplotlib.axes.Axes
-            The axes on which to draw the vertical lines.
-        df : pd.DataFrame
-            The DataFrame containing period information.
-        labels : dict
-            Dictionary containing labels for period markers.
-        """
         pre_start = df["pre_period_start"].iloc[0]
         pre_end = df["pre_period_end"].iloc[0]
         post_start = df["post_period_start"].iloc[0]
         post_end = df["post_period_end"].iloc[0]
 
-        # Add vertical lines if relevant data points exist
         if (df["time"] < pre_start).any():
             ax.axvline(pre_start, color="grey", linestyle="--", label=labels['pre_period_start'])
 
@@ -175,7 +71,6 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         if (df["time"] > post_end).any():
             ax.axvline(post_end, color="grey", linestyle="--", label=labels['post_period_end'])
 
-        # Consolidate legend entries to avoid duplicates
         handles, legend_labels = ax.get_legend_handles_labels()
         unique_labels = dict(zip(legend_labels, handles))
         ax.legend(unique_labels.values(), unique_labels.keys(),
@@ -183,85 +78,60 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
 
     # ----------------------------- Extract Plot Options -----------------------------
 
-    # Chart dimensions in pixels with default values
     chart_width_px = plot_options.get("chart_width", 800)
     chart_height_px = plot_options.get("chart_height", 600)
-
-    # Convert pixels to inches (assuming 100 DPI)
     dpi = 100
     fig_width_in = chart_width_px / dpi
-    fig_height_in = (chart_height_px * 3) / dpi  # 3 vertically stacked subplots
+    fig_height_in = (chart_height_px * 3) / dpi
 
-    # Axis and title configurations
     x_label = plot_options.get("x_label", "Time")
     y_labels = plot_options.get("y_labels", ["Observed", "Pointwise Effect", "Cumulative Effect"])
     plot_title = plot_options.get("title", "")
     title_font_size = plot_options.get("title_font_size", 14)
     axis_label_font_size = plot_options.get("axis_title_font_size", 12)
 
-    # Y-axis formatter options
     y_formatter_option = plot_options.get("y_formatter", "millions")
     y_formatter_unit_option = plot_options.get("y_formatter_unit", "dollar")
 
-    # Legend labels with defaults
     legend_labels = plot_options.get("legend_labels", {})
     legend = {
         'mean': legend_labels.get("mean", "Mean"),
         'observed': legend_labels.get("observed", "Observed"),
         'pointwise': legend_labels.get("pointwise", "Pointwise"),
         'cumulative': legend_labels.get("cumulative", "Cumulative"),
-        'pre_period_start': legend_labels.get("pre-period-start", "Pre-Period Start"),
-        'pre_period_end': legend_labels.get("pre-period-end", "Pre-Period End"),
-        'post_period_start': legend_labels.get("post-period-start", "Post-Period Start"),
-        'post_period_end': legend_labels.get("post-period-end", "Post-Period End"),
+        'pre_period_start': legend_labels.get("pre_period_start", "Pre-Period Start"),
+        'pre_period_end': legend_labels.get("pre_period_end", "Pre-Period End"),
+        'post_period_start': legend_labels.get("post_period_start", "Post-Period Start"),
+        'post_period_end': legend_labels.get("post_period_end", "Post-Period End"),
     }
 
-    # Process y_formatter_unit to map each y_label to its unit
     y_formatter_units = process_y_formatter_units(y_formatter_unit_option, y_labels)
-    default_unit = "dollar"  # Fallback unit
-
-    # ----------------------------- Create Subplots -----------------------------
+    default_unit = "dollar"
 
     fig, axes = plt.subplots(
         nrows=3,
         ncols=1,
         figsize=(fig_width_in, fig_height_in),
         sharex=True,
-        constrained_layout=True  # Automatically adjust layout
+        constrained_layout=True
     )
 
-    # Set the main title if provided
     if plot_title:
         fig.suptitle(plot_title, fontsize=title_font_size)
 
-    # ----------------------------- Configure Each Subplot -----------------------------
-
     for ax, y_label in zip(axes, y_labels):
-        # Enable grid for better readability
         ax.grid(True, linestyle='--', alpha=0.7)
-
-        # Determine the unit for the current subplot
         unit = y_formatter_units.get(y_label, default_unit)
-
-        # Create and set the y-axis formatter
         formatter = create_y_axis_formatter(y_formatter_option, unit)
         ax.yaxis.set_major_formatter(FuncFormatter(formatter))
-
-        # Set y-axis label
         ax.set_ylabel(y_label, fontsize=axis_label_font_size,
                       fontweight="bold", labelpad=10)
 
-    # Add vertical period markers to each subplot
     for ax in axes:
         add_period_markers(ax, data_frame, legend)
 
-    # Set the common x-axis label on the bottom subplot
     axes[-1].set_xlabel(x_label, fontsize=axis_label_font_size, fontweight="bold")
-
-    # Rotate x-axis labels for better readability
     plt.setp(axes[-1].get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
-
-    # ----------------------------- Plot Data on Subplots -----------------------------
 
     # ------------------- Subplot 1: Observed vs. Mean -------------------
     observed_mask = (data_frame["scale"] == "original") & (data_frame["stat"] == "observed")
@@ -270,10 +140,10 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     observed_data = data_frame[observed_mask]
     mean_data = data_frame[mean_mask]
 
-    axes[0].plot(mean_data["time"], mean_data["value"],
-                 label=legend['mean'], color='blue')
-    axes[0].plot(observed_data["time"], observed_data["value"],
-                 label=legend['observed'], color='orange')
+    # Plot the main mean line
+    axes[0].plot(mean_data["time"], mean_data["value"], label=legend['mean'], color='blue')
+    # Plot observed data
+    axes[0].plot(observed_data["time"], observed_data["value"], label=legend['observed'], color='orange')
     axes[0].fill_between(
         observed_data["time"],
         observed_data["lower"],
@@ -281,12 +151,20 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         color='gray',
         alpha=0.2
     )
-    axes[0].legend(
-        loc="upper left",
-        bbox_to_anchor=(1, 1),
-        fontsize="small",
-        frameon=False
-    )
+
+    # Identify forecast times where no observed data is available
+    missing_forecast_mask = ~mean_data["time"].isin(observed_data["time"])
+    # Highlight these forecasted missing-value points (e.g., as a dashed line in purple)
+    if missing_forecast_mask.any():
+        axes[0].plot(
+            mean_data.loc[missing_forecast_mask, "time"],
+            mean_data.loc[missing_forecast_mask, "value"],
+            label="Forecast (No Obs)",
+            color='purple',
+            linestyle='--'
+        )
+
+    axes[0].legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize="small", frameon=False)
 
     # ------------------- Subplot 2: Pointwise Effect -------------------
     pointwise_mask = (data_frame["scale"] == "point_effects") & (data_frame["stat"] == "mean")
@@ -302,12 +180,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         alpha=0.2
     )
     axes[1].axhline(0, color="grey", linestyle="--", linewidth=1)
-    axes[1].legend(
-        loc="upper left",
-        bbox_to_anchor=(1, 1),
-        fontsize="small",
-        frameon=False
-    )
+    axes[1].legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize="small", frameon=False)
 
     # ------------------- Subplot 3: Cumulative Effect -------------------
     cumulative_mask = (data_frame["scale"] == "cumulative_effects") & (data_frame["stat"] == "mean")
@@ -323,16 +196,9 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         alpha=0.2
     )
     axes[2].axhline(0, color="grey", linestyle="--", linewidth=1)
-    axes[2].legend(
-        loc="upper left",
-        bbox_to_anchor=(1, 1),
-        fontsize="small",
-        frameon=False
-    )
+    axes[2].legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize="small", frameon=False)
 
-    # ----------------------------- Final Adjustments -----------------------------
-
-    # Align y-labels across subplots for a cleaner look
+    # Align y-labels across subplots
     fig.align_ylabels(axes)
 
     return fig
