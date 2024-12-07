@@ -26,12 +26,29 @@ from matplotlib.ticker import FuncFormatter
 import pandas as pd
 
 
-def _draw_matplotlib_plot(data_frame, **plot_options):
+def _draw_matplotlib_plot(data_frame, ci=None, **plot_options):
+    """
+    Generate a customized Matplotlib figure with four subplots:
+    1. Observed vs. Mean
+    2. Pointwise Effect
+    3. Cumulative Effect
+    4. Trace Plot of a Selected Parameter (if ci is provided)
+
+    Parameters
+    ----------
+    data_frame : pd.DataFrame
+        The DataFrame containing the data to be plotted.
+    ci : CausalImpactAnalysis, optional
+        The CausalImpactAnalysis object with posterior samples to plot the trace.
+    plot_options : dict, optional
+        Dictionary of plotting options. Same as before plus additional
+        options for trace plot as needed.
+    """
+
     import matplotlib.pyplot as plt
     from matplotlib.ticker import FuncFormatter
 
     # ----------------------------- Helper Functions -----------------------------
-
     def process_y_formatter_units(y_formatter_unit_options, subplot_labels):
         if isinstance(y_formatter_unit_options, str):
             return {label: y_formatter_unit_options for label in subplot_labels}
@@ -77,12 +94,12 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
                   loc="upper left", fontsize="small", frameon=False)
 
     # ----------------------------- Extract Plot Options -----------------------------
-
     chart_width_px = plot_options.get("chart_width", 800)
     chart_height_px = plot_options.get("chart_height", 600)
     dpi = 100
+    # Now we have 4 subplots (instead of 3), adjust height accordingly
     fig_width_in = chart_width_px / dpi
-    fig_height_in = (chart_height_px * 3) / dpi
+    fig_height_in = (chart_height_px * 4) / dpi
 
     x_label = plot_options.get("x_label", "Time")
     y_labels = plot_options.get("y_labels", ["Observed", "Pointwise Effect", "Cumulative Effect"])
@@ -105,21 +122,26 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         'post_period_end': legend_labels.get("post_period_end", "Post-Period End"),
     }
 
-    y_formatter_units = process_y_formatter_units(y_formatter_unit_option, y_labels)
+    # Add one more label for the trace plot if you want distinct formatting
+    extended_y_labels = y_labels + ["Trace Plot"]
+    y_formatter_units = process_y_formatter_units(y_formatter_unit_option, extended_y_labels)
     default_unit = "dollar"
 
+    # ----------------------------- Create Subplots -----------------------------
     fig, axes = plt.subplots(
-        nrows=3,
+        nrows=4,  # now we have 4 rows
         ncols=1,
         figsize=(fig_width_in, fig_height_in),
-        sharex=True,
+        sharex=False,  # Trace plot might not share the same x-axis
         constrained_layout=True
     )
 
     if plot_title:
         fig.suptitle(plot_title, fontsize=title_font_size)
 
-    for ax, y_label in zip(axes, y_labels):
+    # Assign each subplot a y-label
+    subplot_labels = extended_y_labels
+    for ax, y_label in zip(axes, subplot_labels):
         ax.grid(True, linestyle='--', alpha=0.7)
         unit = y_formatter_units.get(y_label, default_unit)
         formatter = create_y_axis_formatter(y_formatter_option, unit)
@@ -127,23 +149,27 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         ax.set_ylabel(y_label, fontsize=axis_label_font_size,
                       fontweight="bold", labelpad=10)
 
-    for ax in axes:
+    # Add period markers only to the first 3 subplots which deal with time series data
+    for ax in axes[:3]:
         add_period_markers(ax, data_frame, legend)
 
-    axes[-1].set_xlabel(x_label, fontsize=axis_label_font_size, fontweight="bold")
-    plt.setp(axes[-1].get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    # Set the common x-axis label on the last time-series subplot (3rd one)
+    axes[2].set_xlabel(x_label, fontsize=axis_label_font_size, fontweight="bold")
+    plt.setp(axes[2].get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
-    # ------------------- Subplot 1: Observed vs. Mean -------------------
+    # ----------------------------- Plot Data on Subplots -----------------------------
+
+    # Subplot 1: Observed vs Mean
     observed_mask = (data_frame["scale"] == "original") & (data_frame["stat"] == "observed")
     mean_mask = (data_frame["scale"] == "original") & (data_frame["stat"] == "mean")
 
     observed_data = data_frame[observed_mask]
     mean_data = data_frame[mean_mask]
 
-    # Plot the main mean line
-    axes[0].plot(mean_data["time"], mean_data["value"], label=legend['mean'], color='blue')
-    # Plot observed data
-    axes[0].plot(observed_data["time"], observed_data["value"], label=legend['observed'], color='orange')
+    axes[0].plot(mean_data["time"], mean_data["value"],
+                 label=legend['mean'], color='blue')
+    axes[0].plot(observed_data["time"], observed_data["value"],
+                 label=legend['observed'], color='orange')
     axes[0].fill_between(
         observed_data["time"],
         observed_data["lower"],
@@ -151,22 +177,9 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
         color='gray',
         alpha=0.2
     )
-
-    # Identify forecast times where no observed data is available
-    missing_forecast_mask = ~mean_data["time"].isin(observed_data["time"])
-    # Highlight these forecasted missing-value points (e.g., as a dashed line in purple)
-    if missing_forecast_mask.any():
-        axes[0].plot(
-            mean_data.loc[missing_forecast_mask, "time"],
-            mean_data.loc[missing_forecast_mask, "value"],
-            label="Forecast (No Obs)",
-            color='purple',
-            linestyle='--'
-        )
-
     axes[0].legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize="small", frameon=False)
 
-    # ------------------- Subplot 2: Pointwise Effect -------------------
+    # Subplot 2: Pointwise Effect
     pointwise_mask = (data_frame["scale"] == "point_effects") & (data_frame["stat"] == "mean")
     pointwise_data = data_frame[pointwise_mask]
 
@@ -182,7 +195,7 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     axes[1].axhline(0, color="grey", linestyle="--", linewidth=1)
     axes[1].legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize="small", frameon=False)
 
-    # ------------------- Subplot 3: Cumulative Effect -------------------
+    # Subplot 3: Cumulative Effect
     cumulative_mask = (data_frame["scale"] == "cumulative_effects") & (data_frame["stat"] == "mean")
     cumulative_data = data_frame[cumulative_mask]
 
@@ -198,7 +211,17 @@ def _draw_matplotlib_plot(data_frame, **plot_options):
     axes[2].axhline(0, color="grey", linestyle="--", linewidth=1)
     axes[2].legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize="small", frameon=False)
 
-    # Align y-labels across subplots
+    # ---------------------- Subplot 4: Trace Plot of MCMC Samples --------------------
+    # Check if ci and posterior samples are available
+    if ci is not None and hasattr(ci, 'posterior_samples'):
+        # For example, plot the trace of observation_noise_scale parameter
+        obs_noise_samples = ci.posterior_samples.observation_noise_scale.numpy()
+        axes[3].plot(obs_noise_samples, color='black', alpha=0.7)
+        axes[3].set_xlabel("MCMC Iteration", fontsize=axis_label_font_size, fontweight="bold")
+        axes[3].grid(True, linestyle='--', alpha=0.7)
+        axes[3].set_title("Trace of Observation Noise Scale", fontsize=axis_label_font_size)
+
+    # Align y-labels across subplots for a cleaner look
     fig.align_ylabels(axes)
 
     return fig
