@@ -320,7 +320,7 @@ def plot(ci_model, **kwargs) -> Union[alt.Chart, Any]:
         else:
             plt = _draw_interactive_plot(plot_df, **plot_params)
     elif plot_params["backend"] == "matplotlib":
-        plt = _draw_matplotlib_plot(plot_df, **plot_params)
+        plt = _draw_matplotlib_plot(plot_df, ci=ci_model, **plot_params)
     else:
         raise ValueError(
             "backend must be one of 'altair' or 'matplotlib'. Got"
