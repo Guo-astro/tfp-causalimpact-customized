@@ -117,8 +117,6 @@ def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_dia
                         plt.figtext(0.5, 0.01, f"Convergence Status: {convergence_status} (R-hat: {rhat.mean():.3f})",
                                     ha="center", fontsize=12, color=color)
 
-                    plt.show()
-
                     # Generate autocorrelation plot with detailed legend
                     az.plot_autocorr(var_data, var_names=[var], compact=True)
                     plt.suptitle(f"Autocorrelation Plot for {var_title}", fontsize=16)
@@ -133,7 +131,6 @@ def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_dia
                         plt.figtext(0.5, 0.01, f"Convergence Status: {convergence_status} (R-hat: {rhat.mean():.3f})",
                                     ha="center", fontsize=12, color=color)
 
-                    plt.show()
 
                 except Exception as e:
                     logger.warning(f"Failed to plot diagnostics for variable '{var_title}': {e}")
@@ -338,13 +335,6 @@ def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = N
 
     # ---------------------- Subplot 4: Trace Plot of MCMC Samples --------------------
     # Check if ci and posterior samples are available
-    if ci is not None and hasattr(ci, 'posterior_samples'):
-        # For example, plot the trace of observation_noise_scale parameter
-        obs_noise_samples = ci.posterior_samples.observation_noise_scale.numpy()
-        axes[3].plot(obs_noise_samples, color='black', alpha=0.7)
-        axes[3].set_xlabel("MCMC Iteration", fontsize=axis_label_font_size, fontweight="bold")
-        axes[3].grid(True, linestyle='--', alpha=0.7)
-        axes[3].set_title("Trace of Observation Noise Scale", fontsize=axis_label_font_size)
     if ci is not None:
         diagnostics = {}
         inference_data = az.from_dict(posterior=ci.convergence_diagnostics)
