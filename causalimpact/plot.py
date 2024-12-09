@@ -165,10 +165,7 @@ def _generate_diagnostic_plots(
                             )
                         )
 
-                        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-
                         # --- Autocorrelation Plot ---
-                        plt.figure(figsize=(10, 6))
                         az.plot_autocorr(var_data, var_names=[var])
                         plt.suptitle(f"Autocorrelation Plot for {var_title}", fontsize=16)
 
@@ -194,7 +191,6 @@ def _generate_diagnostic_plots(
                             )
                         )
 
-                        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
                     else:
                         logger.warning(f"R-hat values for variable '{var_title}' are missing.")
