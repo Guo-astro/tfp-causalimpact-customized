@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.0
+## v0.2.2
 
 ### Added
 
@@ -8,6 +8,9 @@
 - Added convergence diagnosis plots
 
 ### Changed
+
+- num_results to 1800 by default
+- num_warmup_steps to num_results/2
 
 ### Fixed
 
