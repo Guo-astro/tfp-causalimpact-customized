@@ -47,7 +47,8 @@ def _generate_diagnostic_plots(
         inference_data: az.InferenceData,
         convergence_diagnostics: Dict[str, Any],
         fig_width_in: float,
-        fig_height_in: float
+        fig_height_in: float,
+        generate_diagnostic_plots: bool
 ):
     """
     Generate diagnostic plots for the posterior samples using ArviZ.
@@ -140,62 +141,63 @@ def _generate_diagnostic_plots(
                             f"Median = {posterior_median:.3f}"
                         )
 
-                        # --- Trace Plot ---
-                        az.plot_trace(var_data, var_names=[var], compact=True)
-                        plt.suptitle(f"Trace Plot for {var_title}", fontsize=16)
+                        if generate_diagnostic_plots:
+                            # --- Trace Plot ---
+                            az.plot_trace(var_data, var_names=[var], compact=True)
+                            plt.suptitle(f"Trace Plot for {var_title}", fontsize=16)
 
-                        # Add detailed legends
-                        handles, labels = plt.gca().get_legend_handles_labels()
-                        if handles and labels:
-                            plt.legend(
-                                handles,
-                                [f"Chain {label}" for label in labels],
-                                title='Chains',
-                                loc='upper right'
+                            # Add detailed legends
+                            handles, labels = plt.gca().get_legend_handles_labels()
+                            if handles and labels:
+                                plt.legend(
+                                    handles,
+                                    [f"Chain {label}" for label in labels],
+                                    title='Chains',
+                                    loc='upper right'
+                                )
+
+                            # Annotate the plot with convergence statistics
+                            plt.figtext(
+                                0.95, 0.95, rhat_stats,
+                                ha="right", va="top", fontsize=10,
+                                bbox=dict(
+                                    facecolor='white',
+                                    alpha=0.8,
+                                    edgecolor=color,
+                                    boxstyle='round,pad=0.5'
+                                )
                             )
 
-                        # Annotate the plot with convergence statistics
-                        plt.figtext(
-                            0.95, 0.95, rhat_stats,
-                            ha="right", va="top", fontsize=10,
-                            bbox=dict(
-                                facecolor='white',
-                                alpha=0.8,
-                                edgecolor=color,
-                                boxstyle='round,pad=0.5'
-                            )
-                        )
+                            # --- Autocorrelation Plot ---
+                            az.plot_autocorr(var_data, var_names=[var], figsize=(fig_width_in, fig_height_in))
+                            # --- Posterior Plot ---
+                            az.plot_posterior(var_data, var_names=[var], figsize=(fig_width_in, fig_height_in))
+                            # --- Forest Plot ---
+                            az.plot_forest(var_data, var_names=[var], ess=True, r_hat=True,
+                                           figsize=(fig_width_in, fig_height_in))
+                            plt.suptitle(f"Autocorrelation Plot for {var_title}")
 
-                        # --- Autocorrelation Plot ---
-                        az.plot_autocorr(var_data, var_names=[var], figsize=(fig_width_in, fig_height_in))
-                        # --- Posterior Plot ---
-                        az.plot_posterior(var_data, var_names=[var], figsize=(fig_width_in, fig_height_in))
-                        # --- Forest Plot ---
-                        az.plot_forest(var_data, var_names=[var], ess=True, r_hat=True,
-                                       figsize=(fig_width_in, fig_height_in))
-                        plt.suptitle(f"Autocorrelation Plot for {var_title}")
+                            # Add detailed legends
+                            handles, labels = plt.gca().get_legend_handles_labels()
+                            if handles and labels:
+                                plt.legend(
+                                    handles,
+                                    [f"Chain {label}" for label in labels],
+                                    title='Chains',
+                                    loc='upper right'
+                                )
 
-                        # Add detailed legends
-                        handles, labels = plt.gca().get_legend_handles_labels()
-                        if handles and labels:
-                            plt.legend(
-                                handles,
-                                [f"Chain {label}" for label in labels],
-                                title='Chains',
-                                loc='upper right'
+                            # Annotate the plot with convergence statistics
+                            plt.figtext(
+                                0.95, 0.95, rhat_stats,
+                                ha="right", va="top", fontsize=10,
+                                bbox=dict(
+                                    facecolor='white',
+                                    alpha=0.8,
+                                    edgecolor=color,
+                                    boxstyle='round,pad=0.5'
+                                )
                             )
-
-                        # Annotate the plot with convergence statistics
-                        plt.figtext(
-                            0.95, 0.95, rhat_stats,
-                            ha="right", va="top", fontsize=10,
-                            bbox=dict(
-                                facecolor='white',
-                                alpha=0.8,
-                                edgecolor=color,
-                                boxstyle='round,pad=0.5'
-                            )
-                        )
 
 
                     else:
@@ -411,8 +413,7 @@ def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = N
         coords = inference_data.posterior.coords
         num_computational_draws = coords["draw"].shape[0] * coords["chain"].shape[0]
         print(f"Number of computational draws: {num_computational_draws}")
-        if generate_diagnostic_plots:
-            _generate_diagnostic_plots(inference_data, diagnostics, fig_width_in, fig_height_in)
+        _generate_diagnostic_plots(inference_data, diagnostics, fig_width_in, fig_height_in, generate_diagnostic_plots)
 
         summary = az.summary(inference_data)
         pprint(summary)
