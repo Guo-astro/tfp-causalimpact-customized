@@ -106,10 +106,10 @@ def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_dia
                         plt.legend(handles, [f"Chain {label}" for label in labels], title='Chains', loc='upper right')
 
                     # Retrieve R-hat for the variable
-                    rhat = convergence_diagnostics.get('rhat', {}).get(var, None)
+                    rhat: np.ndarray | None = convergence_diagnostics.get('rhat', {}).get(var, None)
                     if rhat is not None:
                         # Determine if R-hat indicates convergence
-                        is_converged = all(rhat.values() < RHAT_THRESHOLD)
+                        is_converged = all(rhat < RHAT_THRESHOLD)
                         convergence_status = "Converged" if is_converged else "Not Converged"
                         color = 'green' if is_converged else 'red'
 
@@ -355,7 +355,7 @@ def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = N
 
         diagnostics["rhat"] = rhat
         diagnostics["ess"] = ess
-        _generate_diagnostic_plots(inference_data, ci.convergence_diagnostics)
+        _generate_diagnostic_plots(inference_data, diagnostics)
 
     # Align y-labels across subplots for a cleaner look
     fig.align_ylabels(axes)

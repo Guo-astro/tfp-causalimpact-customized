@@ -158,13 +158,13 @@ class InferenceOptions:
     num_warmup_steps : Optional[int]
         Number of warmup (burn-in) steps.
     """
-    num_results: int = 900
+    num_results: int = 1800
     num_warmup_steps: Optional[int] = None
 
     def __post_init__(self):
         # If not set, use about 1/9 of num_results as warmup
         if self.num_warmup_steps is None:
-            self.num_warmup_steps = math.ceil(self.num_results / 9)
+            self.num_warmup_steps = math.ceil(self.num_results / 2)
 
 
 def fit_causalimpact(data: pd.DataFrame,
