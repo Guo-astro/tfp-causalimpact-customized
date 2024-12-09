@@ -1,6 +1,6 @@
 # tfp_causalimpact_customized
 
-### Rebuilt of [TFP CausalImpact](https://github.com/google/tfp-causalimpact)
+#### A stable multi-chain rebuilt of [TFP CausalImpact](https://github.com/google/tfp-causalimpact)
 
 ## Features
 

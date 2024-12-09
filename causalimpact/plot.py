@@ -49,7 +49,8 @@ def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_dia
 
     This function generates trace plots and autocorrelation plots for all relevant
     variables in the InferenceData object, adding detailed legends and indicating
-    convergence status based on R-hat statistics.
+    convergence status based on R-hat statistics. Additionally, it annotates the plots
+    with median, mean, max, and min values of R-hat for each variable.
 
     Parameters
     ----------
@@ -96,41 +97,110 @@ def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_dia
                     # Retrieve the descriptive title; default to the variable name if not found
                     var_title = VARIABLE_TITLES.get(var, var)
 
-                    # Generate trace plot with detailed legend
-                    az.plot_trace(var_data, var_names=[var], compact=True)
-                    plt.suptitle(f"Trace Plot for {var_title}", fontsize=16)
-
-                    # Add detailed legends
-                    handles, labels = plt.gca().get_legend_handles_labels()
-                    if handles and labels:
-                        plt.legend(handles, [f"Chain {label}" for label in labels], title='Chains', loc='upper right')
-
                     # Retrieve R-hat for the variable
                     rhat: np.ndarray | None = convergence_diagnostics.get('rhat', {}).get(var, None)
+
                     if rhat is not None:
+                        # Compute additional statistics
+                        rhat_mean = np.mean(rhat)
+                        rhat_median = np.median(rhat)
+                        rhat_min = np.min(rhat)
+                        rhat_max = np.max(rhat)
+                        # Compute posterior statistics
+                        posterior_mean = var_data.mean().values
+                        posterior_median = var_data.median().values
+
+                        # Update the stats string
+                        rhat_stats = (f"R-hat Statistics:\n"
+                                      f"Mean = {rhat_mean:.3f}\n"
+                                      f"Median = {rhat_median:.3f}\n"
+                                      f"Min = {rhat_min:.3f}\n"
+                                      f"Max = {rhat_max:.3f}\n\n"
+                                      f"Posterior Statistics:\n"
+                                      f"Mean = {posterior_mean:.3f}\n"
+                                      f"Median = {posterior_median:.3f}")
+
+                        # Annotate the plot
+                        plt.figtext(0.95, 0.95, rhat_stats,
+                                    ha="right", va="top", fontsize=10,
+                                    bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
                         # Determine if R-hat indicates convergence
-                        is_converged = all(rhat < RHAT_THRESHOLD)
+                        is_converged = np.all(rhat < RHAT_THRESHOLD)
                         convergence_status = "Converged" if is_converged else "Not Converged"
                         color = 'green' if is_converged else 'red'
 
-                        # Annotate the plot with convergence status
-                        plt.figtext(0.5, 0.01, f"Convergence Status: {convergence_status} (R-hat: {rhat.mean():.3f})",
-                                    ha="center", fontsize=12, color=color)
+                        # Log the R-hat statistics
+                        logger.info(f"Variable '{var_title}': R-hat Mean={rhat_mean:.3f}, Median={rhat_median:.3f}, "
+                                    f"Min={rhat_min:.3f}, Max={rhat_max:.3f} - {convergence_status}")
 
-                    # Generate autocorrelation plot with detailed legend
-                    az.plot_autocorr(var_data, var_names=[var], compact=True)
-                    plt.suptitle(f"Autocorrelation Plot for {var_title}", fontsize=16)
+                        # Create a formatted string for annotations
+                        rhat_stats = (f"R-hat Statistics:\n"
+                                      f"Mean = {rhat_mean:.3f}\n"
+                                      f"Median = {rhat_median:.3f}\n"
+                                      f"Min = {rhat_min:.3f}\n"
+                                      f"Max = {rhat_max:.3f}")
 
-                    # Add detailed legends
-                    handles, labels = plt.gca().get_legend_handles_labels()
-                    if handles and labels:
-                        plt.legend(handles, [f"Chain {label}" for label in labels], title='Chains', loc='upper right')
+                        # Generate trace plot with detailed legend
+                        az.plot_trace(var_data, var_names=[var], compact=True)
+                        plt.suptitle(f"Trace Plot for {var_title}", fontsize=16)
 
-                    if rhat is not None:
-                        # Use the same convergence status and color
-                        plt.figtext(0.5, 0.01, f"Convergence Status: {convergence_status} (R-hat: {rhat.mean():.3f})",
-                                    ha="center", fontsize=12, color=color)
+                        # Add detailed legends
+                        handles, labels = plt.gca().get_legend_handles_labels()
+                        if handles and labels:
+                            plt.legend(handles, [f"Chain {label}" for label in labels], title='Chains',
+                                       loc='upper right')
+                        if rhat is not None:
+                            # Existing R-hat statistics
+                            rhat_mean = np.mean(rhat)
+                            rhat_median = np.median(rhat)
+                            rhat_min = np.min(rhat)
+                            rhat_max = np.max(rhat)
 
+                            # Compute posterior statistics
+                            posterior_mean = var_data.mean().values
+                            posterior_median = var_data.median().values
+
+                            # Update the stats string
+                            rhat_stats = (f"R-hat Statistics:\n"
+                                          f"Mean = {rhat_mean:.3f}\n"
+                                          f"Median = {rhat_median:.3f}\n"
+                                          f"Min = {rhat_min:.3f}\n"
+                                          f"Max = {rhat_max:.3f}\n\n"
+                                          f"Posterior Statistics:\n"
+                                          f"Mean = {posterior_mean:.3f}\n"
+                                          f"Median = {posterior_median:.3f}")
+
+                            # Annotate the plot
+                            plt.figtext(0.95, 0.95, rhat_stats,
+                                        ha="right", va="top", fontsize=10,
+                                        bbox=dict(facecolor='white', alpha=0.8, edgecolor=color,
+                                                  boxstyle='round,pad=0.5'))
+
+                        # Annotate the plot with convergence statistics
+                        plt.figtext(0.95, 0.95, rhat_stats,
+                                    ha="right", va="top", fontsize=10,
+                                    bbox=dict(facecolor='white', alpha=0.8, edgecolor=color, boxstyle='round,pad=0.5'))
+
+                        # Generate autocorrelation plot with detailed legend
+                        az.plot_autocorr(var_data, var_names=[var], compact=True)
+                        plt.suptitle(f"Autocorrelation Plot for {var_title}", fontsize=16)
+
+                        # Add detailed legends
+                        handles, labels = plt.gca().get_legend_handles_labels()
+                        if handles and labels:
+                            plt.legend(handles, [f"Chain {label}" for label in labels], title='Chains',
+                                       loc='upper right')
+
+                        # Annotate the autocorrelation plot with convergence statistics
+                        plt.figtext(0.95, 0.95, rhat_stats,
+                                    ha="right", va="top", fontsize=10,
+                                    bbox=dict(facecolor='white', alpha=0.8, edgecolor=color, boxstyle='round,pad=0.5'))
+
+                        # Optionally, adjust layout to prevent overlap
+                        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+                    else:
+                        logger.warning(f"R-hat values for variable '{var_title}' are missing.")
 
                 except Exception as e:
                     logger.warning(f"Failed to plot diagnostics for variable '{var_title}': {e}")
@@ -139,13 +209,8 @@ def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_dia
         else:
             logger.info(f"Variable '{var}' not found in posterior samples. Skipping plots.")
 
-    # Optionally, handle other groups in InferenceData (e.g., prior, sample_stats) similarly
-    # For example:
-    # for var in inference_data.prior.variables:
-    #     # Similar plotting logic
-    #     pass
-
     logger.info("Diagnostic plots generation completed.")
+    plt.show()
 
 
 def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = None, **plot_options):
