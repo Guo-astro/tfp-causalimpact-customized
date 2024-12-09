@@ -64,12 +64,25 @@ def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_dia
     None
         Displays the diagnostic plots.
     """
+    # Define a mapping for variable titles (optional)
+    VARIABLE_TITLES = {
+        'level': 'Local Level',
+        'level_scale': 'Level Scale',
+        'observation_noise_scale': 'Observation Noise Scale',
+        'weights': 'Regression Weights',
+        'seasonal_drift_scales': 'Seasonal Drift Scales',
+        'seasonal_levels': 'Seasonal Levels'
+    }
+
     # List of variables to generate diagnostics for
     variables_to_plot = ['level', 'level_scale', 'observation_noise_scale', 'weights']
 
     # Add seasonal variables if present
     seasonal_variables = ['seasonal_drift_scales', 'seasonal_levels']
     variables_to_plot.extend(seasonal_variables)
+
+    # Define convergence threshold
+    RHAT_THRESHOLD = 1.1
 
     # Iterate over each variable and generate plots if data is present
     for var in variables_to_plot:
@@ -88,11 +101,22 @@ def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_dia
                     plt.suptitle(f"Trace Plot for {var_title}", fontsize=16)
 
                     # Add detailed legends
-                    # ArviZ automatically handles legends for different chains
-                    # However, we'll ensure that the legend is clear and descriptive
                     handles, labels = plt.gca().get_legend_handles_labels()
                     if handles and labels:
                         plt.legend(handles, [f"Chain {label}" for label in labels], title='Chains', loc='upper right')
+
+                    # Retrieve R-hat for the variable
+                    rhat = convergence_diagnostics.get('rhat', {}).get(var, None)
+                    if rhat is not None:
+                        # Determine if R-hat indicates convergence
+                        is_converged = all(rhat.values() < RHAT_THRESHOLD)
+                        convergence_status = "Converged" if is_converged else "Not Converged"
+                        color = 'green' if is_converged else 'red'
+
+                        # Annotate the plot with convergence status
+                        plt.figtext(0.5, 0.01, f"Convergence Status: {convergence_status} (R-hat: {rhat.mean():.3f})",
+                                    ha="center", fontsize=12, color=color)
+
                     plt.show()
 
                     # Generate autocorrelation plot with detailed legend
@@ -103,27 +127,13 @@ def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_dia
                     handles, labels = plt.gca().get_legend_handles_labels()
                     if handles and labels:
                         plt.legend(handles, [f"Chain {label}" for label in labels], title='Chains', loc='upper right')
-                    plt.show()
 
-                    # Retrieve R-hat for the variable
-                    rhat = convergence_diagnostics.get('rhat', {}).get(var, None)
                     if rhat is not None:
-                        # Determine if R-hat indicates convergence
-                        is_converged = all(rhat.values() < 1.1)
-                        convergence_status = "Converged" if is_converged else "Not Converged"
-                        color = 'green' if is_converged else 'red'
+                        # Use the same convergence status and color
+                        plt.figtext(0.5, 0.01, f"Convergence Status: {convergence_status} (R-hat: {rhat.mean():.3f})",
+                                    ha="center", fontsize=12, color=color)
 
-                        # Annotate the plots with convergence status
-                        plt.figure(figsize=(6, 2))
-                        plt.text(0.5, 0.5, f"Convergence Status: {convergence_status}\nMean R-hat: {rhat.mean():.3f}",
-                                 horizontalalignment='center', verticalalignment='center',
-                                 fontsize=12, color=color)
-                        plt.axis('off')
-                        plt.show()
-
-                        logger.info(f"Variable '{var_title}': R-hat = {rhat.mean():.3f} ({convergence_status})")
-                    else:
-                        logger.warning(f"R-hat value for variable '{var_title}' not found in convergence diagnostics.")
+                    plt.show()
 
                 except Exception as e:
                     logger.warning(f"Failed to plot diagnostics for variable '{var_title}': {e}")
