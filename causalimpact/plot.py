@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """Plotting causalimpact results."""
-
+from pprint import pprint
 from typing import Any, Union, Dict
 
 import altair as alt
@@ -45,7 +45,9 @@ VARIABLE_TITLES = {
 
 def _generate_diagnostic_plots(
         inference_data: az.InferenceData,
-        convergence_diagnostics: Dict[str, Any]
+        convergence_diagnostics: Dict[str, Any],
+        fig_width_in: float,
+        fig_height_in: float
 ):
     """
     Generate diagnostic plots for the posterior samples using ArviZ.
@@ -139,7 +141,6 @@ def _generate_diagnostic_plots(
                         )
 
                         # --- Trace Plot ---
-                        plt.figure(figsize=(10, 6))
                         az.plot_trace(var_data, var_names=[var], compact=True)
                         plt.suptitle(f"Trace Plot for {var_title}", fontsize=16)
 
@@ -166,8 +167,13 @@ def _generate_diagnostic_plots(
                         )
 
                         # --- Autocorrelation Plot ---
-                        az.plot_autocorr(var_data, var_names=[var])
-                        plt.suptitle(f"Autocorrelation Plot for {var_title}", fontsize=16)
+                        az.plot_autocorr(var_data, var_names=[var], figsize=(fig_width_in, fig_height_in))
+                        # --- Posterior Plot ---
+                        az.plot_posterior(var_data, var_names=[var], figsize=(fig_width_in, fig_height_in))
+                        # --- Forest Plot ---
+                        az.plot_forest(var_data, var_names=[var], ess=True, r_hat=True,
+                                       figsize=(fig_width_in, fig_height_in))
+                        plt.suptitle(f"Autocorrelation Plot for {var_title}")
 
                         # Add detailed legends
                         handles, labels = plt.gca().get_legend_handles_labels()
@@ -399,11 +405,15 @@ def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = N
         # Compute R-hat and ESS
         rhat = az.rhat(inference_data)
         ess = az.ess(inference_data)
-
         diagnostics["rhat"] = rhat
         diagnostics["ess"] = ess
-        _generate_diagnostic_plots(inference_data, diagnostics)
+        coords = inference_data.posterior.coords
+        num_computational_draws = coords["draw"].shape[0] * coords["chain"].shape[0]
+        print(f"Number of computational draws: {num_computational_draws}")
+        _generate_diagnostic_plots(inference_data, diagnostics, fig_width_in, fig_height_in)
 
+        summary = az.summary(inference_data)
+        pprint(summary)
     # Align y-labels across subplots for a cleaner look
     fig.align_ylabels(axes)
 
