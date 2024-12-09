@@ -23,6 +23,7 @@ from typing import List, Text, Tuple, Union
 from causalimpact import data as cid
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 
 def calculate_trajectory_quantiles(
@@ -89,6 +90,11 @@ def calculate_trajectory_quantiles(
     return quantiles_df
 
 
+import numpy as np
+import pandas as pd
+from typing import List, Text
+
+
 def process_posterior_quantities(ci_data: cid.CausalImpactData,
                                  vals_to_process: np.ndarray,
                                  col_names: List[Text]) -> pd.DataFrame:
@@ -101,37 +107,61 @@ def process_posterior_quantities(ci_data: cid.CausalImpactData,
       samples (or derived quantities).
     - Returns a `pd.DataFrame` indexed by time, compatible with the original dataset.
 
-    ### Parameters
+    Parameters
+    ----------
+    ci_data : cid.CausalImpactData
+        The `CausalImpactData` object containing information about the original data,
+        including pre- and post-intervention periods and scaling.
 
-    - **ci_data** (`cid.CausalImpactData`):
-      The `CausalImpactData` object containing information about the original data,
-      including pre- and post-intervention periods and scaling.
+    vals_to_process : np.ndarray
+        An array of shape `[num_time_points, num_samples]`, where `num_samples` is the
+        number of posterior samples or derived posterior quantities and `num_time_points`
+        is the number of time steps in the full pre-post period.
 
-    - **vals_to_process** (`np.ndarray`):
-      An array of shape `[num_samples, num_time_points]`, where `num_samples` is the
-      number of posterior samples or derived posterior quantities and `num_time_points`
-      is the number of time steps in the full pre-post period.
+    col_names : List[Text]
+        Column names for the resulting DataFrame.
 
-    - **col_names** (`List[str]`):
-      Column names for the resulting DataFrame.
-
-    ### Returns
-
-    `pd.DataFrame`:
-    A DataFrame with rows corresponding to time points (covering both pre- and
-    post-intervention periods) and columns named according to `col_names`. The
-    DataFrame index is a time-based index derived from the original `CausalImpactData`.
-
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame with rows corresponding to time points (covering both pre- and
+        post-intervention periods) and columns named according to `col_names`. The
+        DataFrame index is a time-based index derived from the original `CausalImpactData`.
     """
     # Undo scaling if it was applied
     if ci_data.standardize_data:
         vals_to_process = ci_data.outcome_scaler.inverse_transform(vals_to_process)
 
-    # Transpose so that rows correspond to time points
-    vals_to_process = np.transpose(vals_to_process)
+    # Ensure vals_to_process is a NumPy array
+    if isinstance(vals_to_process, tf.Tensor):
+        vals_to_process = vals_to_process.numpy()
+    elif not isinstance(vals_to_process, np.ndarray):
+        raise TypeError(f"vals_to_process must be a NumPy array or TensorFlow Tensor, got {type(vals_to_process)}")
 
-    # Create a time-index that spans both the pre and post periods
-    index = ci_data.normalized_pre_intervention_data.index.union(
+    # Ensure vals_to_process is 2D
+    if vals_to_process.ndim == 1:
+        vals_to_process = vals_to_process.reshape(1, -1)
+
+    # Determine the expected shape
+    time_index = ci_data.normalized_pre_intervention_data.index.union(
         ci_data.normalized_after_pre_intervention_data.index).sort_values()
+    num_time_points = len(time_index)
+    num_samples = len(col_names)
 
-    return pd.DataFrame(vals_to_process, columns=col_names, index=index)
+    # Check if the data needs to be transposed
+    if vals_to_process.shape[0] == num_samples and vals_to_process.shape[1] == num_time_points:
+        # Transpose to [num_time_points, num_samples]
+        vals_to_process = vals_to_process.T
+    elif vals_to_process.shape[0] == num_time_points and vals_to_process.shape[1] == num_samples:
+        # Already in correct orientation
+        pass
+    else:
+        raise ValueError(
+            f"Unexpected shape of vals_to_process: {vals_to_process.shape}, expected ({num_time_points}, {num_samples}) or ({num_samples}, {num_time_points})")
+
+    # Final sanity check
+    if vals_to_process.shape[0] != len(time_index) or vals_to_process.shape[1] != len(col_names):
+        raise ValueError(
+            f"Shape of vals_to_process {vals_to_process.shape} does not match expected (len(index), len(col_names)) = ({len(time_index)}, {len(col_names)}).")
+
+    return pd.DataFrame(vals_to_process, columns=col_names, index=time_index)

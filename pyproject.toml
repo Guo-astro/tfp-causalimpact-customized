@@ -1,11 +1,12 @@
 [project]
 name = "tfp_causalimpact_customized"
-version = "0.1.41"
+version = "0.2.0"
 description = "A stable version of the tfcasualimpact package"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "altair>=5.5.0",
+    "arviz>=0.20.0",
     "japanize-matplotlib>=1.1.3",
     "matplotlib>=3.9.3",
     "numpy<=2.1.0",
@@ -25,10 +26,10 @@ packages = ["causalimpact"]
 
 [dependency-groups]
 dev = [
-   "markdown-katex>=202406.1035",
-   "mkdocs-material>=9.5.47",
-   "mkdocstrings>=0.27.0",
-   "pymdown-extensions>=10.12",
-   "python-markdown-math>=0.8",
-   "statsmodels>=0.14.4",
+    "markdown-katex>=202406.1035",
+    "mkdocs-material>=9.5.47",
+    "mkdocstrings>=0.27.0",
+    "pymdown-extensions>=10.12",
+    "python-markdown-math>=0.8",
+    "statsmodels>=0.14.4",
 ]

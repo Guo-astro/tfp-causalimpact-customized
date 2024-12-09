@@ -9,12 +9,13 @@
 #
 # This software is distributed on an "AS IS" BASIS,
 # without warranties or conditions of any kind.
+import arviz as az
 
-
+import matplotlib.pyplot as plt
 import dataclasses
 import logging
 import math
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 from causalimpact import posterior_processing
 import causalimpact.data as cid
@@ -91,6 +92,7 @@ class CausalImpactAnalysis:
     series: pd.DataFrame
     summary: pd.DataFrame
     posterior_samples: CausalImpactPosteriorSamples
+    convergence_diagnostics: Dict[str, Any]  # New attribute for diagnostics
 
 
 @dataclasses.dataclass
@@ -173,6 +175,7 @@ def fit_causalimpact(data: pd.DataFrame,
                      data_options: Optional[DataOptions] = None,
                      model_options: Optional[ModelOptions] = None,
                      inference_options: Optional[InferenceOptions] = None,
+                     num_chains: int = 4,
                      **kwargs) -> CausalImpactAnalysis:
     r"""
     Fit the CausalImpact model and compute posterior effects.
@@ -228,49 +231,160 @@ def fit_causalimpact(data: pd.DataFrame,
             target_col_name=data_options.outcome_column,
             standardize_data=data_options.standardize_data,
             dtype=data_options.dtype)
+        # Initialize lists to store samples from all chains
+        all_posterior_samples = []
+        all_posterior_means = []
+        all_posterior_trajectories = []
+        # Handle seed
+        if isinstance(seed, int):
+            if num_chains == 1:
+                seeds = (seed,)
+            else:
+                # Generate deterministic seeds from the base seed
+                seeds = tuple(tfp.random.sanitize_seed((seed, chain)) for chain in range(num_chains))
+        elif isinstance(seed, tuple):
+            raise ValueError(f"Seed tuple not supported now, got {seed}.")
+        elif seed is None:
+            # Use default seeding if no seed is provided
+            seeds = tuple(tfp.random.sanitize_seed(None) for _ in range(num_chains))
+        else:
+            raise TypeError(f"Seed must be an int, tuple of ints, or None, got {type(seed)}.")
+        # Run Gibbs sampling for each chain
+        for chain in range(num_chains):
+            print(f"Running chain {chain + 1}/{num_chains}...")
+            posterior_samples, posterior_means, posterior_trajectories = _train_causalimpact_sts(
+                ci_data=ci_data,
+                prior_level_sd=model_options.prior_level_sd,
+                seed=seeds[chain],
+                num_results=inference_options.num_results,
+                num_warmup_steps=inference_options.num_warmup_steps,
+                model=experimental_model,
+                dtype=data_options.dtype,
+                seasons=model_options.seasons,
+                experimental_tf_function_cache_key_addition=experimental_tf_function_cache_key_addition
+            )
+            all_posterior_samples.append(posterior_samples)
+            all_posterior_means.append(posterior_means)
+            all_posterior_trajectories.append(posterior_trajectories)
+            # Combine samples from all chains
+        combined_posterior_samples = _combine_posterior_samples(all_posterior_samples)
+        combined_posterior_means = tf.concat(all_posterior_means, axis=0)
+        combined_posterior_trajectories = tf.concat(all_posterior_trajectories, axis=0)
 
-        posterior_samples, posterior_means, posterior_trajectories = _train_causalimpact_sts(
-            ci_data=ci_data,
-            prior_level_sd=model_options.prior_level_sd,
-            seed=seed,
-            num_results=inference_options.num_results,
-            num_warmup_steps=inference_options.num_warmup_steps,
-            model=experimental_model,
-            dtype=data_options.dtype,
-            seasons=model_options.seasons,
-            experimental_tf_function_cache_key_addition=experimental_tf_function_cache_key_addition
-        )
+        # Compute convergence diagnostics
+        convergence_diagnostics = _compute_convergence_diagnostics(combined_posterior_samples, num_chains)
 
         series, summary = _compute_impact(
-            posterior_means=posterior_means,
-            posterior_trajectories=posterior_trajectories,
+            posterior_means=combined_posterior_means,
+            posterior_trajectories=combined_posterior_trajectories,
             ci_data=ci_data,
+            num_chains=num_chains,
             alpha=alpha)
 
-        if posterior_samples.seasonal_levels.shape[-1] > 0:
+        if combined_posterior_samples.seasonal_levels.shape[-1] > 0:
             seasonal_levels = []
             idx = 0
             for season in model_options.seasons:
-                seasonal_levels.append(posterior_samples.seasonal_levels[..., idx])
+                seasonal_levels.append(combined_posterior_samples.seasonal_levels[..., idx])
                 idx += season.num_seasons - 1
             seasonal_levels = tf.stack(seasonal_levels, axis=-1)
         else:
-            seasonal_levels = posterior_samples.seasonal_levels
+            seasonal_levels = combined_posterior_samples.seasonal_levels
 
         ci_posterior_samples = CausalImpactPosteriorSamples(
-            observation_noise_scale=posterior_samples.observation_noise_scale,
-            level_scale=posterior_samples.level_scale,
-            level=posterior_samples.level,
-            weights=(posterior_samples.weights
-                     if posterior_samples.weights.shape[1] > 0 else None),
+            observation_noise_scale=combined_posterior_samples.observation_noise_scale,
+            level_scale=combined_posterior_samples.level_scale,
+            level=combined_posterior_samples.level,
+            weights=(combined_posterior_samples.weights
+                     if combined_posterior_samples.weights.shape[1] > 0 else None),
             seasonal_drift_scales=(
-                posterior_samples.seasonal_drift_scales
-                if posterior_samples.seasonal_drift_scales.shape[-1] > 0 else None),
+                combined_posterior_samples.seasonal_drift_scales
+                if combined_posterior_samples.seasonal_drift_scales.shape[-1] > 0 else None),
             seasonal_levels=seasonal_levels
         )
-        return CausalImpactAnalysis(series, summary, ci_posterior_samples)
+
+        return CausalImpactAnalysis(series, summary, ci_posterior_samples, convergence_diagnostics)
     finally:
         tf.get_logger().setLevel(tf_log_level)
+
+
+def _combine_posterior_samples(
+        posterior_samples_list: List[gibbs_sampler.GibbsSamplerState]) -> gibbs_sampler.GibbsSamplerState:
+    """
+    Combine posterior samples from multiple chains.
+
+    Parameters
+    ----------
+    posterior_samples_list : List[gibbs_sampler.GibbsSamplerState]
+        List of posterior samples from each chain.
+
+    Returns
+    -------
+    gibbs_sampler.GibbsSamplerState
+        Combined posterior samples.
+    """
+    # Assuming all chains have the same structure
+    combined_observation_noise_scale = tf.concat([s.observation_noise_scale for s in posterior_samples_list], axis=0)
+    combined_level_scale = tf.concat([s.level_scale for s in posterior_samples_list], axis=0) if posterior_samples_list[
+                                                                                                     0].level_scale is not None else None
+    combined_level = tf.concat([s.level for s in posterior_samples_list], axis=0) if posterior_samples_list[
+                                                                                         0].level is not None else None
+    combined_weights = tf.concat([s.weights for s in posterior_samples_list], axis=0) if posterior_samples_list[
+                                                                                             0].weights is not None else None
+    combined_seasonal_drift_scales = tf.concat([s.seasonal_drift_scales for s in posterior_samples_list], axis=0) if \
+        posterior_samples_list[0].seasonal_drift_scales is not None else None
+    combined_seasonal_levels = tf.concat([s.seasonal_levels for s in posterior_samples_list], axis=0) if \
+        posterior_samples_list[0].seasonal_levels is not None else None
+
+    return gibbs_sampler.GibbsSamplerState(
+        seed=123,
+        observation_noise_scale=combined_observation_noise_scale,
+        level_scale=combined_level_scale,
+        level=combined_level,
+        weights=combined_weights,
+        seasonal_drift_scales=combined_seasonal_drift_scales,
+        seasonal_levels=combined_seasonal_levels
+    )
+
+
+def _compute_convergence_diagnostics(posterior_samples: gibbs_sampler.GibbsSamplerState,
+                                     num_chains: int) -> Dict[str, Any]:
+    """
+    Compute convergence diagnostics using ArviZ.
+    """
+
+    # Convert posterior samples to ArviZ InferenceData
+    data_dict = {}
+    chain_size = posterior_samples.observation_noise_scale.shape[0] // num_chains
+
+    # Debugging: Print shapes to verify data
+    print(f"Observation noise scale shape: {posterior_samples.observation_noise_scale.shape}")
+    data_dict["observation_noise_scale"] = posterior_samples.observation_noise_scale.numpy().reshape(num_chains,
+                                                                                                     chain_size)
+
+    if posterior_samples.level_scale is not None:
+        print(f"Level scale shape: {posterior_samples.level_scale.shape}")
+        data_dict["level_scale"] = posterior_samples.level_scale.numpy().reshape(num_chains, chain_size)
+    if posterior_samples.level is not None:
+        print(f"Level shape: {posterior_samples.level.shape}")
+        data_dict["level"] = posterior_samples.level.numpy().reshape(num_chains, chain_size, -1)
+    if posterior_samples.weights is not None:
+        print(f"Weights shape: {posterior_samples.weights.shape}")
+        data_dict["weights"] = posterior_samples.weights.numpy().reshape(num_chains, chain_size, -1)
+    if posterior_samples.seasonal_drift_scales is not None:
+        print(f"Seasonal drift scales shape: {posterior_samples.seasonal_drift_scales.shape}")
+        data_dict["seasonal_drift_scales"] = posterior_samples.seasonal_drift_scales.numpy().reshape(num_chains,
+                                                                                                     chain_size, -1)
+    if posterior_samples.seasonal_levels is not None:
+        print(f"Seasonal levels shape: {posterior_samples.seasonal_levels.shape}")
+        data_dict["seasonal_levels"] = posterior_samples.seasonal_levels.numpy().reshape(num_chains, chain_size, -1)
+
+    print(f"Data dict keys: {data_dict.keys()}")
+
+    if not data_dict:
+        raise ValueError("No posterior samples available for convergence diagnostics.")
+
+    return data_dict
 
 
 @tf.function(autograph=False, jit_compile=False)
@@ -350,7 +464,7 @@ def _run_gibbs_sampler(
             outcome_sd=outcome_sd,
             dtype=dtype,
             seasons=seasons)
-
+    tf.random.set_seed(seed)
     sample_seed, forecast_seed = tfp.random.split_seed(seed)
     posterior_samples = gibbs_sampler.fit_with_gibbs_sampling(
         sts_model,
@@ -537,7 +651,6 @@ def _train_causalimpact_sts(
     """
     if isinstance(seed, int):
         seed = (0, seed)
-    seed = tfp.random.sanitize_seed(seed)
 
     X = (tf.convert_to_tensor(ci_data.normalized_whole_period_features.values, dtype=dtype)
          if ci_data.normalized_whole_period_features is not None else None)
@@ -627,7 +740,9 @@ def _compute_impact(
         posterior_means,
         posterior_trajectories,
         ci_data: cid.CausalImpactData,
+        num_chains: int,
         alpha: float = 0.05,
+
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     r"""
     Compute time-series effects and summary statistics.
@@ -671,7 +786,7 @@ def _compute_impact(
             posterior_means=posterior_means,
             posterior_trajectories=posterior_trajectories,
             ci_data=ci_data,
-            quantiles=quantiles))
+            quantiles=quantiles, num_chains=num_chains))
 
     trajectory_dict = _compute_impact_trajectories(
         posterior_trajectories,
@@ -697,24 +812,27 @@ def _compute_impact(
 
 
 def _sample_posterior_predictive(
-        posterior_means: TensorLike,
-        posterior_trajectories: TensorLike,
+        posterior_means: tf.Tensor,
+        posterior_trajectories: tf.Tensor,
         ci_data: cid.CausalImpactData,
-        quantiles: Tuple[float, float]
+        quantiles: Tuple[float, float],
+        num_chains: int  # Add this parameter
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     r"""
     Package posterior predictions into DataFrames with mean and quantiles.
 
     Parameters
     ----------
-    posterior_means : TensorLike
+    posterior_means : tf.Tensor
         Posterior mean $\hat{y}_t$.
-    posterior_trajectories : TensorLike
+    posterior_trajectories : tf.Tensor
         Posterior samples of $\hat{y}_t$.
     ci_data : cid.CausalImpactData
         Data structure with full data info.
     quantiles : tuple
         Quantiles for intervals (e.g., (0.025, 0.975)).
+    num_chains : int
+        Number of MCMC chains used in sampling.
 
     Returns
     -------
@@ -723,20 +841,50 @@ def _sample_posterior_predictive(
     posterior_trajectory_summary : pd.DataFrame
         DataFrame with posterior mean and quantile columns.
     """
-    posterior_means = posterior_processing.process_posterior_quantities(
-        ci_data, posterior_means, ["posterior_mean"])
-    posterior_trajectories = _package_posterior_trajectories(
-        posterior_trajectories, ci_data)
-    posterior_quantiles = posterior_processing.calculate_trajectory_quantiles(
-        posterior_trajectories, "posterior", quantiles)
+    # Calculate samples per chain
+    total_samples = posterior_means.shape[0]
+    samples_per_chain = total_samples // num_chains
 
-    posterior_trajectory_summary = posterior_means.join(posterior_quantiles)
-    return posterior_trajectories, posterior_trajectory_summary
+    if total_samples % num_chains != 0:
+        raise ValueError(f"Total posterior_means samples ({total_samples}) not divisible by num_chains ({num_chains}).")
+
+    # Reshape to (num_chains, samples_per_chain, num_features)
+    # Assuming posterior_means shape is (num_chains * samples_per_chain, num_features)
+    reshaped_posterior_means = tf.reshape(posterior_means, (num_chains, samples_per_chain, -1))
+
+    # Average across chains to get (samples_per_chain, num_features)
+    averaged_posterior_means = tf.reduce_mean(reshaped_posterior_means, axis=0)
+
+    # Transpose to (num_features, samples_per_chain) if necessary
+    # Assuming num_features=1 for posterior_mean
+    averaged_posterior_means = tf.transpose(averaged_posterior_means)  # Shape: (num_features, samples_per_chain)
+
+    # Convert to DataFrame
+    posterior_means_df = posterior_processing.process_posterior_quantities(
+        ci_data, averaged_posterior_means, ["posterior_mean"]
+    )
+
+    # Handle posterior trajectories by packaging them correctly
+    posterior_trajectories_df = _package_posterior_trajectories(
+        posterior_trajectories, ci_data, num_chains
+    )
+
+    # Calculate quantiles
+    posterior_quantiles = posterior_processing.calculate_trajectory_quantiles(
+        posterior_trajectories_df, "posterior", quantiles
+    )
+
+    # Join posterior means with quantiles
+    posterior_trajectory_summary = posterior_means_df.join(posterior_quantiles)
+
+    return posterior_trajectories_df, posterior_trajectory_summary
 
 
 def _package_posterior_trajectories(
-        posterior_trajectories: TensorLike,
-        ci_data: cid.CausalImpactData) -> pd.DataFrame:
+        posterior_trajectories: tf.Tensor,
+        ci_data: cid.CausalImpactData,
+        num_chains: int  # Add this parameter to handle multiple chains
+) -> pd.DataFrame:
     r"""
     Convert sampled $\hat{y}_t$ trajectories into a DataFrame.
 
@@ -744,19 +892,43 @@ def _package_posterior_trajectories(
 
     Parameters
     ----------
-    posterior_trajectories : TensorLike
+    posterior_trajectories : tf.Tensor
         Posterior samples of predictions.
     ci_data : cid.CausalImpactData
         Data for indexing.
+    num_chains : int
+        Number of MCMC chains used in sampling.
 
     Returns
     -------
     pd.DataFrame
         DataFrame with each column a sample trajectory.
     """
-    col_names = [f"sample_{i + 1}" for i in range(posterior_trajectories.shape[0])]
+    total_samples = posterior_trajectories.shape[0]
+    samples_per_chain = total_samples // num_chains
+
+    if total_samples % num_chains != 0:
+        raise ValueError(
+            f"Total posterior_trajectories samples ({total_samples}) not divisible by num_chains ({num_chains}).")
+
+    # Reshape to (num_chains, samples_per_chain, num_time_points)
+    reshaped_posterior_trajectories = tf.reshape(posterior_trajectories, (num_chains, samples_per_chain, -1))
+
+    # Flatten all chains and samples into a single axis (num_chains * samples_per_chain, num_time_points)
+    flattened_posterior_trajectories = tf.reshape(reshaped_posterior_trajectories,
+                                                  (-1, reshaped_posterior_trajectories.shape[2]))
+
+    # Transpose to (num_time_points, num_samples)
+    transposed_posterior_trajectories = tf.transpose(flattened_posterior_trajectories)
+
+    # Create column names
+    num_samples = transposed_posterior_trajectories.shape[1]
+    col_names = [f"sample_{i + 1}" for i in range(num_samples)]
+
+    # Convert to DataFrame
     return posterior_processing.process_posterior_quantities(
-        ci_data, posterior_trajectories, col_names)
+        ci_data, transposed_posterior_trajectories.numpy(), col_names
+    )
 
 
 def _compute_impact_trajectories(

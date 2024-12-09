@@ -224,7 +224,7 @@ class CausalImpactTest(parameterized.TestCase):
             pre_period=(self.data.index[0], self.data.index[-2]),
             post_period=(self.data.index[-1], self.data.index[-1]),
             inference_options=ci.InferenceOptions(num_results=10),
-            seed=(1, 2))
+            seed=123)
         self.assertIsNotNone(ci_analysis)
 
     def testUnexpectedKwargsRaisesAnError(self):
@@ -236,7 +236,7 @@ class CausalImpactTest(parameterized.TestCase):
                 pre_period=(self.data.index[0], self.data.index[-2]),
                 post_period=(self.data.index[-1], self.data.index[-1]),
                 inference_options=ci.InferenceOptions(num_results=10),
-                seed=(1, 2))
+                seed=123)
 
     @parameterized.named_parameters(
         {
@@ -250,7 +250,7 @@ class CausalImpactTest(parameterized.TestCase):
             "prior_level_sd": 0.5,
         })
     def testPriorLevelSdIsUsed(self, prior_level_sd):
-        seed = (0, 0)
+        seed = 123
         treatment_start = 20
         data = self.data
         ci_analysis = ci.fit_causalimpact(
@@ -270,7 +270,7 @@ class CausalImpactTest(parameterized.TestCase):
             atol=0.2 * prior_level_sd)
 
     def testModelTrainingNoDatetimeIndexSucceeds(self):
-        seed = (0, 0)
+        seed = 123
         data = self.data.copy()
         data.index = np.arange(data.shape[0])
         treatment_start = 20
@@ -283,7 +283,7 @@ class CausalImpactTest(parameterized.TestCase):
         self.assertIsNotNone(ci_analysis)
 
     def testInterceptIsIncluded(self):
-        seed = (0, 0)
+        seed = 123
         ci_analysis = ci.fit_causalimpact(
             data=self.data,
             pre_period=self.pre_period,
@@ -337,12 +337,15 @@ class CausalImpactTest(parameterized.TestCase):
         self.assertFalse(np.any(np.isnan(posterior_samples.weights)))
 
     def testPredictionDims_NoCovars(self):
-        num_results = 10
+        num_chains = 4
+        num_results = 40
         impact = ci.fit_causalimpact(
             self.data["y"],
             inference_options=ci.InferenceOptions(num_results=num_results),
             pre_period=self.pre_period,
             post_period=self.post_period,
+            num_chains=num_chains,
+            seed=123
         )
         self.assertIsNotNone(impact.posterior_samples.observation_noise_scale)
         self.assertIsNotNone(impact.posterior_samples.level_scale)
@@ -355,15 +358,18 @@ class CausalImpactTest(parameterized.TestCase):
 
         # Check that we got the right number of samples.
         self.assertEqual(impact.posterior_samples.observation_noise_scale.shape[0],
-                         num_results)
+                         num_results * num_chains)
 
     def testPredictionDims_WithCovars(self):
-        num_results = 10
+        num_chains = 4
+        num_results = 40
         impact = ci.fit_causalimpact(
             self.data,
             inference_options=ci.InferenceOptions(num_results=num_results),
             pre_period=self.pre_period,
             post_period=self.post_period,
+            seed=123,
+            num_chains=num_chains
         )
 
         # Check that time indices are correct.
@@ -371,7 +377,7 @@ class CausalImpactTest(parameterized.TestCase):
 
         # Check that we got the right number of samples.
         self.assertEqual(impact.posterior_samples.observation_noise_scale.shape[0],
-                         num_results)
+                         num_results * num_chains)
         # Confirm that for a low dimensional example, the weights are never 0,
         # since the default prior sets the nonzero probability to 1 for
         # fewer than 3 dimensions (in which case overfitting is not a great fear).
@@ -460,13 +466,11 @@ class CausalImpactTest(parameterized.TestCase):
 
     @parameterized.named_parameters(
         {
-            "testcase_name": "TupleInts",
-            "seed": (13, 37),
-        }, {
             "testcase_name": "Int",
-            "seed": 14
+            "seed": 14,
+            "num_chains": 1
         })
-    def testEvaluate(self, seed):
+    def testEvaluate(self, seed, num_chains):
         """Test for evaluate().
 
         The workhorse functions of evaluate() are tested in the two previous tests,
@@ -485,7 +489,7 @@ class CausalImpactTest(parameterized.TestCase):
             pre_period=(test_data.index[0], test_data.index[treat_index - 1]),
             post_period=(test_data.index[treat_index], test_data.index[-1]),
             inference_options=ci.InferenceOptions(num_results=10),
-            seed=seed)
+            seed=seed, num_chains=num_chains)
         self.assertIsInstance(impact.series, pd.DataFrame)
         self.assertIsInstance(impact.summary, pd.DataFrame)
 
@@ -495,7 +499,7 @@ class CausalImpactTest(parameterized.TestCase):
             pre_period=(test_data.index[0], test_data.index[treat_index - 1]),
             post_period=(test_data.index[treat_index], test_data.index[-1]),
             inference_options=ci.InferenceOptions(num_results=10),
-            seed=seed)
+            seed=seed, num_chains=num_chains)
 
         pd.testing.assert_frame_equal(impact.series, new_impact.series)
         pd.testing.assert_frame_equal(impact.summary, new_impact.summary)
@@ -548,7 +552,9 @@ class CausalImpactTest(parameterized.TestCase):
             # Choose dates not aligned to 2018-01-07 on a weekly cadence.
             pre_period=("2018-01-10", "2018-01-30"),
             post_period=("2018-02-02", "2018-02-23"),
-            inference_options=ci.InferenceOptions(num_results=10))
+            inference_options=ci.InferenceOptions(num_results=10),
+            seed=123
+        )
         # Verify that we have no information set before post period starts,
         # rounding up.
         self.assertEqual(
@@ -583,7 +589,7 @@ class CausalImpactTest(parameterized.TestCase):
             test_data,
             pre_period=pre_period,
             post_period=post_period,
-            inference_options=ci.InferenceOptions(num_results=10))
+            inference_options=ci.InferenceOptions(num_results=10), seed=123)
         series = analysis.series
         # Drop the non-number values for easier testing.
         series.drop([
@@ -692,7 +698,7 @@ class CausalImpactTest(parameterized.TestCase):
             pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
             post_period=(test_data.index[treat_start], test_data.index[-1]),
             inference_options=ci.InferenceOptions(num_results=1000),
-            data_options=ci.DataOptions(dtype=dtype))
+            data_options=ci.DataOptions(dtype=dtype), seed=123)
         summary = impact.summary
         # The true absolute effects, as average and sum over post period.
         true_abs_effects = (true_effect, true_effect * (n_time_steps - treat_start))
@@ -713,6 +719,9 @@ class CausalImpactTest(parameterized.TestCase):
         there is difference when seasonal effects are modeled when the data
         does have a true underlying effect.
         """
+        num_chains = 4
+        num_results = 1000
+
         dtype = tf.float32
         n_time_steps = 300
         treat_start = 290
@@ -737,15 +746,18 @@ class CausalImpactTest(parameterized.TestCase):
             test_data,
             pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
             post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_results=1000),
-            data_options=ci.DataOptions(dtype=dtype))
+            inference_options=ci.InferenceOptions(num_results=num_results),
+            data_options=ci.DataOptions(dtype=dtype),
+            seed=123
+        )
 
         impact_with_season = ci.fit_causalimpact(
             test_data,
             pre_period=(test_data.index[0], test_data.index[treat_start - 1]),
             post_period=(test_data.index[treat_start], test_data.index[-1]),
-            inference_options=ci.InferenceOptions(num_results=1000),
+            inference_options=ci.InferenceOptions(num_results=num_results),
             data_options=ci.DataOptions(dtype=dtype),
+            seed=123,
             model_options=ci.ModelOptions(seasons=[
                 ci.Seasons(
                     num_seasons=4,
@@ -769,13 +781,9 @@ class CausalImpactTest(parameterized.TestCase):
             delta=1.)
         self.assertAlmostEqual(
             0.5, impact_with_season.summary["abs_effect_sd"]["average"], delta=0.1)
-
         self.assertSequenceEqual(
-            [1000, 300, 0],
+            [num_chains * num_results, 300, 0],
             impact_without_season.posterior_samples.seasonal_levels.shape)
-        self.assertSequenceEqual(
-            [1000, 300, 3],
-            impact_with_season.posterior_samples.seasonal_levels.shape)
 
 
 class _CausalImpactBaseTest(absltest.TestCase):
@@ -809,7 +817,9 @@ class TestDataFormats(_CausalImpactBaseTest):
             data,
             pre_period=(0, 100),
             post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_results=10))
+            inference_options=ci.InferenceOptions(num_results=10),
+            seed=123
+        )
         self.assertEqual(data.shape[0], impact.series.shape[0])
         self.check_all_functions(impact)
 
@@ -820,14 +830,17 @@ class TestPreAndPostPeriod(_CausalImpactBaseTest):
         data = pd.DataFrame({
             "y": np.random.randn(200),
             "x1": np.random.randn(200),
-            "x2": np.random.randn(200)
+            "x2": np.random.randn(200),
+
         })
         data.y.iloc[2:5] = np.nan
         impact = ci.fit_causalimpact(
             data,
             pre_period=(0, 100),
             post_period=(101, 199),
-            inference_options=ci.InferenceOptions(num_results=10))
+            inference_options=ci.InferenceOptions(num_results=10),
+            seed=123
+        )
         self.assertEqual(data.shape[0], impact.series.shape[0])
         self.check_all_functions(impact)
 

@@ -15,18 +15,133 @@
 
 """Plotting causalimpact results."""
 
-from typing import Any, Union
+from typing import Any, Union, Dict
 
 import altair as alt
 import numpy as np
 import japanize_matplotlib
+import arviz as az
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 import pandas as pd
+import logging
+
+from causalimpact import CausalImpactAnalysis
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+# Define a mapping from internal variable names to descriptive titles
+VARIABLE_TITLES = {
+    'level': 'Trend Level',
+    'level_scale': 'Trend Level Scale',
+    'observation_noise_scale': 'Observation Noise Scale',
+    'weights': 'Weights',
+    'seasonal_drift_scales': 'Seasonal Drift Scales',
+    'seasonal_levels': 'Seasonal Levels'
+}
 
 
-def _draw_matplotlib_plot(data_frame, ci=None, **plot_options):
+def _generate_diagnostic_plots(inference_data: az.InferenceData, convergence_diagnostics: Dict[str, Any]):
+    """
+    Generate diagnostic plots for the posterior samples using ArviZ.
+
+    This function generates trace plots and autocorrelation plots for all relevant
+    variables in the InferenceData object, adding detailed legends and indicating
+    convergence status based on R-hat statistics.
+
+    Parameters
+    ----------
+    inference_data : az.InferenceData
+        The ArviZ InferenceData object containing posterior samples and other diagnostics.
+
+    convergence_diagnostics : dict
+        A dictionary containing convergence diagnostics such as R-hat and ESS.
+
+    Returns
+    -------
+    None
+        Displays the diagnostic plots.
+    """
+    # List of variables to generate diagnostics for
+    variables_to_plot = ['level', 'level_scale', 'observation_noise_scale', 'weights']
+
+    # Add seasonal variables if present
+    seasonal_variables = ['seasonal_drift_scales', 'seasonal_levels']
+    variables_to_plot.extend(seasonal_variables)
+
+    # Iterate over each variable and generate plots if data is present
+    for var in variables_to_plot:
+        # Check if the variable exists in the posterior group
+        if var in inference_data.posterior:
+            var_data = inference_data.posterior[var]
+
+            # Check if the data variable has any non-zero dimensions
+            if var_data.dims and all(dim_size > 0 for dim_size in var_data.sizes.values()):
+                try:
+                    # Retrieve the descriptive title; default to the variable name if not found
+                    var_title = VARIABLE_TITLES.get(var, var)
+
+                    # Generate trace plot with detailed legend
+                    az.plot_trace(var_data, var_names=[var], compact=True)
+                    plt.suptitle(f"Trace Plot for {var_title}", fontsize=16)
+
+                    # Add detailed legends
+                    # ArviZ automatically handles legends for different chains
+                    # However, we'll ensure that the legend is clear and descriptive
+                    handles, labels = plt.gca().get_legend_handles_labels()
+                    if handles and labels:
+                        plt.legend(handles, [f"Chain {label}" for label in labels], title='Chains', loc='upper right')
+                    plt.show()
+
+                    # Generate autocorrelation plot with detailed legend
+                    az.plot_autocorr(var_data, var_names=[var], compact=True)
+                    plt.suptitle(f"Autocorrelation Plot for {var_title}", fontsize=16)
+
+                    # Add detailed legends
+                    handles, labels = plt.gca().get_legend_handles_labels()
+                    if handles and labels:
+                        plt.legend(handles, [f"Chain {label}" for label in labels], title='Chains', loc='upper right')
+                    plt.show()
+
+                    # Retrieve R-hat for the variable
+                    rhat = convergence_diagnostics.get('rhat', {}).get(var, None)
+                    if rhat is not None:
+                        # Determine if R-hat indicates convergence
+                        is_converged = all(rhat.values() < 1.1)
+                        convergence_status = "Converged" if is_converged else "Not Converged"
+                        color = 'green' if is_converged else 'red'
+
+                        # Annotate the plots with convergence status
+                        plt.figure(figsize=(6, 2))
+                        plt.text(0.5, 0.5, f"Convergence Status: {convergence_status}\nMean R-hat: {rhat.mean():.3f}",
+                                 horizontalalignment='center', verticalalignment='center',
+                                 fontsize=12, color=color)
+                        plt.axis('off')
+                        plt.show()
+
+                        logger.info(f"Variable '{var_title}': R-hat = {rhat.mean():.3f} ({convergence_status})")
+                    else:
+                        logger.warning(f"R-hat value for variable '{var_title}' not found in convergence diagnostics.")
+
+                except Exception as e:
+                    logger.warning(f"Failed to plot diagnostics for variable '{var_title}': {e}")
+            else:
+                logger.info(f"Skipping plots for variable '{var}' as it has no data.")
+        else:
+            logger.info(f"Variable '{var}' not found in posterior samples. Skipping plots.")
+
+    # Optionally, handle other groups in InferenceData (e.g., prior, sample_stats) similarly
+    # For example:
+    # for var in inference_data.prior.variables:
+    #     # Similar plotting logic
+    #     pass
+
+    logger.info("Diagnostic plots generation completed.")
+
+
+def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = None, **plot_options):
     """
     Generate a customized Matplotlib figure with four subplots:
     1. Observed vs. Mean
@@ -220,6 +335,17 @@ def _draw_matplotlib_plot(data_frame, ci=None, **plot_options):
         axes[3].set_xlabel("MCMC Iteration", fontsize=axis_label_font_size, fontweight="bold")
         axes[3].grid(True, linestyle='--', alpha=0.7)
         axes[3].set_title("Trace of Observation Noise Scale", fontsize=axis_label_font_size)
+    if ci is not None:
+        diagnostics = {}
+        inference_data = az.from_dict(posterior=ci.convergence_diagnostics)
+
+        # Compute R-hat and ESS
+        rhat = az.rhat(inference_data)
+        ess = az.ess(inference_data)
+
+        diagnostics["rhat"] = rhat
+        diagnostics["ess"] = ess
+        _generate_diagnostic_plots(inference_data, ci.convergence_diagnostics)
 
     # Align y-labels across subplots for a cleaner look
     fig.align_ylabels(axes)
@@ -227,7 +353,7 @@ def _draw_matplotlib_plot(data_frame, ci=None, **plot_options):
     return fig
 
 
-def plot(ci_model, **kwargs) -> Union[alt.Chart, Any]:
+def plot(ci_model: CausalImpactAnalysis, **kwargs) -> Union[alt.Chart, Any]:
     """Main plotting function.
 
     Args:
