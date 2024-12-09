@@ -211,7 +211,8 @@ def _generate_diagnostic_plots(
     logger.info("Diagnostic plots generation completed.")
 
 
-def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = None, **plot_options):
+def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = None, generate_diagnostic_plots=True,
+                          **plot_options):
     """
     Generate a customized Matplotlib figure with four subplots:
     1. Observed vs. Mean
@@ -410,7 +411,8 @@ def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = N
         coords = inference_data.posterior.coords
         num_computational_draws = coords["draw"].shape[0] * coords["chain"].shape[0]
         print(f"Number of computational draws: {num_computational_draws}")
-        _generate_diagnostic_plots(inference_data, diagnostics, fig_width_in, fig_height_in)
+        if generate_diagnostic_plots:
+            _generate_diagnostic_plots(inference_data, diagnostics, fig_width_in, fig_height_in)
 
         summary = az.summary(inference_data)
         pprint(summary)
@@ -420,7 +422,7 @@ def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = N
     return fig
 
 
-def plot(ci_model: CausalImpactAnalysis, **kwargs) -> Union[alt.Chart, Any]:
+def plot(ci_model: CausalImpactAnalysis, generate_diagnostic_plots: bool, **kwargs) -> Union[alt.Chart, Any]:
     """Main plotting function.
 
     Args:
@@ -513,7 +515,8 @@ def plot(ci_model: CausalImpactAnalysis, **kwargs) -> Union[alt.Chart, Any]:
         else:
             plt = _draw_interactive_plot(plot_df, **plot_params)
     elif plot_params["backend"] == "matplotlib":
-        plt = _draw_matplotlib_plot(plot_df, ci=ci_model, **plot_params)
+        plt = _draw_matplotlib_plot(plot_df, ci=ci_model, generate_diagnostic_plots=generate_diagnostic_plots,
+                                    **plot_params)
     else:
         raise ValueError(
             "backend must be one of 'altair' or 'matplotlib'. Got"
