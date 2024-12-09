@@ -316,7 +316,7 @@ def _draw_matplotlib_plot(data_frame: pd.DataFrame, ci: CausalImpactAnalysis = N
 
     # ----------------------------- Create Subplots -----------------------------
     fig, axes = plt.subplots(
-        nrows=4,  # now we have 4 rows
+        nrows=3,  # now we have 4 rows
         ncols=1,
         figsize=(fig_width_in, fig_height_in),
         sharex=False,  # Trace plot might not share the same x-axis
