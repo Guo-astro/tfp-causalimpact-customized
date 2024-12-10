@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Plotting causalimpact results."""
+"""Plotting causalimpact_gibbs results."""
 from pprint import pprint
 from typing import Any, Union, Dict
 
@@ -27,7 +27,7 @@ from matplotlib.ticker import FuncFormatter
 import pandas as pd
 import logging
 
-from causalimpact import CausalImpactAnalysis
+from causalimpact_gibbs import CausalImpactAnalysis
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

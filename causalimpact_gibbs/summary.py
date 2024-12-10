@@ -8,7 +8,7 @@ import pandas as pd
 import os
 
 # Import your CausalImpactAnalysis class
-from causalimpact.causalimpact_lib import CausalImpactAnalysis
+from causalimpact_gibbs.causalimpact_lib import CausalImpactAnalysis
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)

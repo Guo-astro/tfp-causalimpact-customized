@@ -17,7 +17,7 @@
 
 from absl.testing import absltest
 
-from causalimpact import standardize
+from causalimpact_gibbs import standardize
 import numpy as np
 import pandas as pd
 

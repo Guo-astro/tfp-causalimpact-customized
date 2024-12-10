@@ -18,8 +18,8 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import causalimpact as ci
-from causalimpact.plot import _create_plot_component_df
+import causalimpact_gibbs as ci
+from causalimpact_gibbs.plot import _create_plot_component_df
 import numpy as np
 import pandas as pd
 

@@ -1,4 +1,4 @@
-site_name: tfp-causalimpact-customized
+site_name: tfp-causalimpact_gibbs-customized
 
 theme:
   name: "readthedocs"

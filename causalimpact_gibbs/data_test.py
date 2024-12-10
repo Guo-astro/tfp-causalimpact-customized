@@ -20,7 +20,7 @@ import os
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import causalimpact.data as cid
+import causalimpact_gibbs.data as cid
 
 import numpy as np
 import pandas as pd

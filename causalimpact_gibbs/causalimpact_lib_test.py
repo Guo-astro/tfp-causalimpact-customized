@@ -19,9 +19,9 @@ import os
 
 from absl.testing import absltest
 from absl.testing import parameterized
-import causalimpact as ci
-from causalimpact import causalimpact_lib
-from causalimpact import data as cid
+import causalimpact_gibbs as ci
+from causalimpact_gibbs import causalimpact_lib
+from causalimpact_gibbs import data as cid
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.arima_process import ArmaProcess
@@ -798,7 +798,7 @@ class _CausalImpactBaseTest(absltest.TestCase):
         with self.assertRaises(ValueError):
             ci.summary(impact, output_format="foo")
 
-        self.assertIsNotNone(ci.plot(impact))
+        self.assertIsNotNone(ci.plot(impact, generate_diagnostic_plots=False))
 
 
 class TestDataFormats(_CausalImpactBaseTest):

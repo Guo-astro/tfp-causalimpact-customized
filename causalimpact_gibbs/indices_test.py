@@ -21,7 +21,7 @@ from typing import Tuple
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from causalimpact import indices
+from causalimpact_gibbs import indices
 
 import numpy as np
 import pandas as pd

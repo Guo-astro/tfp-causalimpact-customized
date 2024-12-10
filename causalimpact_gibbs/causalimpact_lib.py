@@ -17,9 +17,9 @@ import logging
 import math
 from typing import Dict, List, Optional, Tuple, Union, Any
 
-from causalimpact import posterior_processing
-import causalimpact.data as cid
-from causalimpact.indices import InputDateType, OutputDateType, OutputPeriodType
+from causalimpact_gibbs import posterior_processing
+import causalimpact_gibbs.data as cid
+from causalimpact_gibbs.indices import InputDateType, OutputDateType, OutputPeriodType
 
 import numpy as np
 import pandas as pd

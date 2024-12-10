@@ -17,8 +17,8 @@
 
 from absl.testing import absltest
 
-from causalimpact import data as cid
-from causalimpact import posterior_processing
+from causalimpact_gibbs import data as cid
+from causalimpact_gibbs import posterior_processing
 import numpy as np
 import pandas as pd
 

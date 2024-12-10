@@ -16,8 +16,8 @@
 """Class for storing and preparing data for modeling."""
 from typing import Optional, Text, Tuple, Union
 
-from causalimpact import indices
-from causalimpact import standardize
+from causalimpact_gibbs import indices
+from causalimpact_gibbs import standardize
 import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp

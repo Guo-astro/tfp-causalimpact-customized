@@ -20,7 +20,7 @@ transforming posterior samples from model space back to original data space.
 
 from typing import List, Text, Tuple, Union
 
-from causalimpact import data as cid
+from causalimpact_gibbs import data as cid
 import numpy as np
 import pandas as pd
 import tensorflow as tf
