@@ -612,7 +612,7 @@ def _train_causalimpact_sts(
         dtype,
         seasons: List[Seasons],
         experimental_tf_function_cache_key_addition: int = 0,
-        r2: int = 0.8,
+        r2: float = 0.8,
 ) -> Tuple[gibbs_sampler.GibbsSamplerState, TensorLike, TensorLike]:
     r"""
     Train the STS model via Gibbs sampling and return posterior predictions.
