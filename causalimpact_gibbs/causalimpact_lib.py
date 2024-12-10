@@ -170,6 +170,7 @@ class InferenceOptions:
 def fit_causalimpact(data: pd.DataFrame,
                      pre_period: Tuple[InputDateType, InputDateType],
                      post_period: Tuple[InputDateType, InputDateType],
+                     empirical_r2: float,
                      alpha: float = 0.05,
                      seed: Optional[_SeedType] = None,
                      data_options: Optional[DataOptions] = None,
@@ -261,7 +262,8 @@ def fit_causalimpact(data: pd.DataFrame,
                 model=experimental_model,
                 dtype=data_options.dtype,
                 seasons=model_options.seasons,
-                experimental_tf_function_cache_key_addition=experimental_tf_function_cache_key_addition
+                experimental_tf_function_cache_key_addition=experimental_tf_function_cache_key_addition,
+                r2=empirical_r2,
             )
             all_posterior_samples.append(posterior_samples)
             all_posterior_means.append(posterior_means)
@@ -610,6 +612,7 @@ def _train_causalimpact_sts(
         dtype,
         seasons: List[Seasons],
         experimental_tf_function_cache_key_addition: int = 0,
+        r2: int = 0.8,
 ) -> Tuple[gibbs_sampler.GibbsSamplerState, TensorLike, TensorLike]:
     r"""
     Train the STS model via Gibbs sampling and return posterior predictions.
@@ -666,7 +669,6 @@ def _train_causalimpact_sts(
     y_pre_std = tf.convert_to_tensor(
         np.nanstd(ci_data.pre_intervention_target_ts.time_series, ddof=1), dtype=dtype)
 
-    r2 = 0.8
     if X is not None:
         observation_noise_scale = tf.cast(tf.math.sqrt(1 - r2), dtype=dtype) * y_pre_std
     else:
