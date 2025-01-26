@@ -1,14 +1,4 @@
-# Copyright 2019-2023 The TFP CausalImpact Authors
-# Copyright 2014 Google Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# This software is distributed on an "AS IS" BASIS,
-# without warranties or conditions of any kind.
+# causalimpact_lib.py
 import arviz as az
 
 import matplotlib.pyplot as plt
