@@ -170,7 +170,7 @@ class InferenceOptions:
 def fit_causalimpact(data: pd.DataFrame,
                      pre_period: Tuple[InputDateType, InputDateType],
                      post_period: Tuple[InputDateType, InputDateType],
-                     empirical_r2: float,
+                     empirical_r2: float = 0.8,
                      alpha: float = 0.05,
                      seed: Optional[_SeedType] = None,
                      data_options: Optional[DataOptions] = None,
